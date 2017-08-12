@@ -10,9 +10,11 @@ gradle.properties
 local.gradle
 /build
 /*/build
+/.idea
 *.iml
 *.ipr
 *.iws
 .DS_Store
 TAGS
 ERRS
+*.log

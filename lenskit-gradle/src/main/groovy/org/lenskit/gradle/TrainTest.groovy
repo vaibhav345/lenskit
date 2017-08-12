@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,12 +24,12 @@ import com.google.common.io.Files
 import groovy.json.JsonOutput
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputFiles
-import org.gradle.api.tasks.TaskAction
 import org.gradle.util.ConfigureUtil
 import org.lenskit.gradle.delegates.DataSetConfig
 import org.lenskit.gradle.delegates.EvalTaskConfig
 import org.lenskit.gradle.delegates.RecommendEvalTaskConfig
 import org.lenskit.gradle.traits.GradleUtils
+import org.yaml.snakeyaml.Yaml
 
 import java.util.concurrent.Callable
 
@@ -58,9 +58,19 @@ class TrainTest extends LenskitTask implements GradleUtils {
     def int threadCount
 
     /**
+     * Then number of parallel tasks to allow.
+     */
+    def int parallelTasks = 0
+
+    /**
      * Configure whether the evaluator should share model components between algorithms.
      */
     def boolean shareModelComponents = true
+
+    /**
+     * Configure whether the evaluation will continue after errors.
+     */
+    def boolean continueAfterError = false
 
     private Map<String,Object> algorithms = new HashMap<>()
     private List<Callable> dataSets = []
@@ -138,7 +148,14 @@ class TrainTest extends LenskitTask implements GradleUtils {
     def dataSet(Map<String,Object> options, DataSetProvider cf) {
         inputs.files cf
         if (options.isolate) {
-            throw new UnsupportedOperationException("isolation not currently supported")
+            dataSets.add {
+                def parser = new Yaml()
+                logger.info 'parsing and isolating {}', cf.dataSetFile
+                def json = parser.load cf.dataSetFile.text
+                json.isolate = true
+                json.base_uri = cf.dataSetFile.toURI().toString()
+                return json
+            }
         } else {
             dataSets.add {
                 makeUrl(cf.dataSetFile, getSpecFile())
@@ -175,7 +192,7 @@ class TrainTest extends LenskitTask implements GradleUtils {
     }
 
     /**
-     * Configure a prediction task.
+     * Configure a top-N recommendation task.
      * @param block The block.
      */
     void recommend(@DelegatesTo(RecommendEvalTaskConfig) Closure block) {
@@ -184,15 +201,19 @@ class TrainTest extends LenskitTask implements GradleUtils {
         evalTasks.add(task)
     }
 
-    @Override
-    @TaskAction
-    void perform() {
-        try {
-            super.perform()
-        } catch (Throwable th) {
-            logger.error('error running train-test task', th)
-            throw new RuntimeException('train-test failed', th)
-        }
+    /**
+     * Configure a rank effectiveness task.  This is built on {@link #recommend(Closure)}, but sets options to defaults
+     * that make the resulting task a rank effectiveness measure when used with suitable metrics such as NDCG.
+     *
+     * @param block The configuration block.
+     */
+    void rank(@DelegatesTo(RecommendEvalTaskConfig) Closure block) {
+        def task = new RecommendEvalTaskConfig(project)
+        task.labelPrefix = 'Rank'
+        task.candidates = 'user.testItems'
+        task.listSize = -1
+        task.configure block
+        evalTasks.add(task)
     }
 
     @Input
@@ -201,7 +222,9 @@ class TrainTest extends LenskitTask implements GradleUtils {
                     user_output_file      : makeUrl(getUserOutputFile(), getSpecFile()),
                     cache_directory       : makeUrl(getCacheDirectory(), getSpecFile()),
                     thread_count          : getThreadCount(),
-                    share_model_components: getShareModelComponents()]
+                    parallel_tasks        : getParallelTasks(),
+                    share_model_components: getShareModelComponents(),
+                    continue_after_error  : getContinueAfterError()]
         json.datasets = dataSets.collect {it.call()}
         json.algorithms = algorithms.collectEntries {k, v ->
             [k, makeUrl(v, getSpecFile())]

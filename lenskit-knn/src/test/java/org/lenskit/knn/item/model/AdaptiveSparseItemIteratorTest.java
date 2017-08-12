@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -41,7 +41,7 @@ public class AdaptiveSparseItemIteratorTest {
         userItems.put(39, LongUtils.packedSet(2, 7, 9, 13));
         userItems.put(12, universe.subSet(2, 97));
         context = new ItemItemBuildContext(SortedKeyIndex.fromCollection(universe),
-                                           null, userItems);
+                                           new Long2DoubleSortedMap[universe.size()], userItems);
     }
 
     @Test

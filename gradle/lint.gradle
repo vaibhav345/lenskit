@@ -26,7 +26,7 @@ allprojects {
 subprojects {
     tasks.withType(Test).all { t ->
         t.jacoco {
-            enabled = lintMode != 'disabled'
+            enabled = travis.isActive() || lintMode != 'disabled'
         }
     }
     tasks.withType(JacocoReport).all { rpt ->
@@ -39,13 +39,13 @@ subprojects {
 task jacocoMergedReport(type: JacocoReport) {
     ext.projects = []
     onlyIf {
-        lintMode != 'disabled'
+        travis.isActive() || lintMode != 'disabled'
     }
     for (prj in subprojects) {
         if (prj.name == 'lenskit-integration-tests') continue;
         projects << prj
         dependsOn prj.test
-        sourceSets prj.sourceSets.test
+        sourceSets prj.sourceSets.main
         if (prj.sourceSets.test.allSource.files.isEmpty()) {
             logger.info '{} has no tests', prj.name
         } else {
@@ -56,31 +56,12 @@ task jacocoMergedReport(type: JacocoReport) {
     reports {
         csv.enabled = false
         xml.enabled = true
+        xml.destination "${buildDir}/reports/jacoco/report.xml"
         html.destination = "$reporting.baseDir/jacoco"
     }
 }
 report.dependsOn jacocoMergedReport
 ciTest.dependsOn report
-
-coveralls {
-    jacocoReportPath = "${buildDir}/reports/jacoco/jacocoMergedReport/jacocoMergedReport.xml"
-    sourceDirs = subprojects.collect({ prj ->
-        if (prj.name == 'lenskit-integration-tests') {
-            return []
-        } else {
-            return prj.sourceSets.main.java.srcDirs
-        }
-    }).flatten()
-}
-
-tasks.coveralls {
-    group = 'report'
-    description = 'Uploads the aggregated coverage report to Coveralls'
-
-    dependsOn jacocoMergedReport
-    onlyIf { System.env.'CI' && travis.activeJdk == 'oraclejdk8' }
-}
-ciTest.dependsOn tasks.coveralls
 
 sonarqube {
     properties {
@@ -89,6 +70,8 @@ sonarqube {
         property "sonar.sourceEncoding", "UTF-8"
         if (System.getenv("SONAR_TOKEN")) {
             property "sonar.login", System.getenv("SONAR_TOKEN")
+        } else if (project.hasProperty('sonar.login')) {
+            property "sonar.login", project.getProperty('sonar.login')
         }
         if (lintMode == 'preview') {
             logger.info 'configuring Sonar for preview mode'

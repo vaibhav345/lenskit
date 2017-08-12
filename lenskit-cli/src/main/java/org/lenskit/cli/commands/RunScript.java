@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -25,14 +25,17 @@ import com.google.common.io.Files;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.Namespace;
 import org.lenskit.cli.Command;
+import org.lenskit.cli.LenskitCommandException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
 
@@ -64,7 +67,7 @@ public class RunScript implements Command {
     }
 
     @Override
-    public void execute(Namespace options) throws Exception {
+    public void execute(Namespace options) throws LenskitCommandException {
         ScriptEngineManager sem = new ScriptEngineManager();
         File scriptFile = options.get("script");
         String ext = Files.getFileExtension(scriptFile.getName());
@@ -75,6 +78,10 @@ public class RunScript implements Command {
         bindings.put("args", options.<List<String>>get("args"));
         try (Reader reader = new FileReader(scriptFile)) {
             engine.eval(reader, bindings);
+        } catch (IOException e) {
+            throw new LenskitCommandException("error loading script file", e);
+        } catch (ScriptException e) {
+            throw new LenskitCommandException("script evaluation failed", e);
         }
     }
 }

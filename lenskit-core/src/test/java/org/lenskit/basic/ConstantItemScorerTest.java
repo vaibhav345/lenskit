@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,22 +20,22 @@
  */
 package org.lenskit.basic;
 
-import org.lenskit.api.RecommenderBuildException;
-import org.lenskit.LenskitConfiguration;
-import org.lenskit.data.dao.EventCollectionDAO;
 import org.junit.Test;
+import org.lenskit.LenskitConfiguration;
 import org.lenskit.LenskitRecommender;
 import org.lenskit.LenskitRecommenderEngine;
 import org.lenskit.api.ItemScorer;
+import org.lenskit.api.RecommenderBuildException;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultMap;
+import org.lenskit.data.dao.EntityCollectionDAO;
 import org.lenskit.results.Results;
 import org.lenskit.util.collections.LongUtils;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
 
 public class ConstantItemScorerTest {
 
@@ -64,7 +64,7 @@ public class ConstantItemScorerTest {
     @Test
     public void testInject() throws RecommenderBuildException {
         LenskitConfiguration config = new LenskitConfiguration();
-        config.addComponent(EventCollectionDAO.empty());
+        config.addComponent(EntityCollectionDAO.create());
         config.bind(ItemScorer.class).to(ConstantItemScorer.class);
         config.set(ConstantItemScorer.Value.class).to(Math.PI);
 

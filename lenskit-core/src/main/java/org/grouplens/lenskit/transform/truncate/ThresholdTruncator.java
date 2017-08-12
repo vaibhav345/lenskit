@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,10 +20,11 @@
  */
 package org.grouplens.lenskit.transform.truncate;
 
-import org.lenskit.inject.Shareable;
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import org.grouplens.lenskit.transform.threshold.Threshold;
-import org.grouplens.lenskit.vectors.MutableSparseVector;
-import org.grouplens.lenskit.vectors.VectorEntry;
+import org.lenskit.inject.Shareable;
+import org.lenskit.util.math.Vectors;
 
 import javax.inject.Inject;
 import java.io.Serializable;
@@ -45,11 +46,13 @@ public class ThresholdTruncator implements VectorTruncator, Serializable {
     }
 
     @Override
-    public void truncate(MutableSparseVector v) {
-        for (VectorEntry e : v) {
-            if (!threshold.retain(e.getValue())) {
-                v.unset(e);
+    public Long2DoubleMap truncate(Long2DoubleMap v) {
+        Long2DoubleMap res = new Long2DoubleOpenHashMap(v.size());
+        for (Long2DoubleMap.Entry e: Vectors.fastEntries(v)) {
+            if (threshold.retain(e.getDoubleValue())) {
+                res.put(e.getLongKey(), e.getDoubleValue());
             }
         }
+        return res;
     }
 }

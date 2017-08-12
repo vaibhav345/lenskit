@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -22,6 +22,10 @@ package org.lenskit;
 
 import org.lenskit.api.RecommenderBuildException;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Error thrown when an error occurs resolving the recommender configuration graph.
  *
@@ -29,6 +33,7 @@ import org.lenskit.api.RecommenderBuildException;
  */
 public class RecommenderConfigurationException extends RecommenderBuildException {
     private static final long serialVersionUID = 1L;
+    private final List<String> hints = new ArrayList<>();
 
     public RecommenderConfigurationException() {
     }
@@ -43,5 +48,24 @@ public class RecommenderConfigurationException extends RecommenderBuildException
 
     public RecommenderConfigurationException(Throwable cause) {
         super(cause);
+    }
+
+    public void addHint(String hint, Object... args) {
+        hints.add(String.format(hint, args));
+    }
+
+    public List<String> getHints() {
+        return Collections.unmodifiableList(hints);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder msg = new StringBuilder(super.toString());
+
+        for (String hint: hints) {
+            msg.append("\nHINT: ").append(hint);
+        }
+
+        return msg.toString();
     }
 }

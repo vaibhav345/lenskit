@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,13 +20,12 @@
  */
 package org.grouplens.lenskit.transform.truncate;
 
-import org.grouplens.lenskit.vectors.MutableSparseVector;
-import org.grouplens.lenskit.vectors.VectorEntry;
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import org.junit.Test;
+import org.lenskit.util.keys.Long2DoubleSortedArrayMap;
 
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
 
 public class TopNTruncatorTest {
 
@@ -36,15 +35,15 @@ public class TopNTruncatorTest {
     public void testSimpleTruncate() {
         long[] keys = {1, 2, 3, 4, 5};
         double[] values = {1.0, 2.0, 3.0, 4.0, 5.0};
-        MutableSparseVector v = MutableSparseVector.wrap(keys, values);
+        Long2DoubleSortedArrayMap v = Long2DoubleSortedArrayMap.wrapUnsorted(keys, values);
 
         VectorTruncator truncator = new TopNTruncator(3, null);
-        truncator.truncate(v);
+        Long2DoubleMap v2 = truncator.truncate(v);
 
         long i = 3;
-        for (VectorEntry e : v.view(VectorEntry.State.SET)) {
-            assertThat(e.getKey(), equalTo(i));
-            assertThat(e.getValue(), closeTo(i, EPSILON));
+        for (Long2DoubleMap.Entry e: v2.long2DoubleEntrySet()) {
+            assertThat(e.getLongKey(), equalTo(i));
+            assertThat(e.getDoubleValue(), closeTo(i, EPSILON));
             i++;
         }
         assertThat(i, equalTo(6L));

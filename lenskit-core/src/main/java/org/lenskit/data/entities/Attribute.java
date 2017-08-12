@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,6 +21,7 @@
 package org.lenskit.data.entities;
 
 import com.google.common.base.Preconditions;
+import com.google.common.reflect.TypeToken;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -43,7 +44,9 @@ public final class Attribute<T> {
     private Attribute(@Nonnull TypedName<T> name, @Nonnull T val) {
         Preconditions.checkNotNull(name, "name");
         Preconditions.checkNotNull(val, "value");
-        Preconditions.checkArgument(name.getType().isInstance(val), "value-type mismatch");
+        Preconditions.checkArgument(name.getRawType().isInstance(val),
+                                    "creating attribute %s: value '%s' is not of correct type",
+                                    name, val);
         this.name = name;
         value = val;
     }
@@ -83,7 +86,7 @@ public final class Attribute<T> {
      * @return The attribute's type.
      */
     @Nonnull
-    public Class<T> getType() {
+    public TypeToken<T> getType() {
         return name.getType();
     }
 

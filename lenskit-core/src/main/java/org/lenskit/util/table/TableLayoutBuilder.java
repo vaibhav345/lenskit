@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,7 +21,6 @@
 package org.lenskit.util.table;
 
 import org.apache.commons.lang3.builder.Builder;
-import org.apache.commons.lang3.exception.CloneFailedException;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -32,7 +31,7 @@ import java.util.LinkedHashSet;
  * @author <a href="http://www.grouplens.org">GroupLens Research</a>
  * @since 0.10
  */
-public class TableLayoutBuilder implements Builder<TableLayout>, Cloneable {
+public class TableLayoutBuilder implements Builder<TableLayout> {
     private LinkedHashSet<String> columns = new LinkedHashSet<>();
 
     /**
@@ -96,24 +95,6 @@ public class TableLayoutBuilder implements Builder<TableLayout>, Cloneable {
      */
     public int getColumnCount() {
         return columns.size();
-    }
-
-    /**
-     * Clone this layout command. Used to build multiple layouts from the same initial
-     * columns.
-     *
-     * @return An independent copy of this table layout command.
-     */
-    @Override
-    public TableLayoutBuilder clone() {
-        TableLayoutBuilder copy;
-        try {
-            copy = (TableLayoutBuilder) super.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new CloneFailedException(e);
-        }
-        copy.columns = new LinkedHashSet<>(columns);
-        return copy;
     }
 
     @Override

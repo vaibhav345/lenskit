@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,21 +20,19 @@
  */
 package org.lenskit.slopeone;
 
-import org.grouplens.lenskit.transform.normalize.DefaultUserVectorNormalizer;
 import org.junit.Test;
-import org.lenskit.data.dao.BridgeItemDAO;
 import org.lenskit.data.dao.DataAccessObject;
-import org.lenskit.data.dao.ItemDAO;
 import org.lenskit.data.dao.file.StaticDataSource;
 import org.lenskit.data.ratings.Rating;
 import org.lenskit.data.ratings.RatingVectorPDAO;
 import org.lenskit.data.ratings.StandardRatingVectorPDAO;
 import org.lenskit.knn.item.model.ItemItemBuildContextProvider;
+import org.lenskit.transform.normalize.DefaultUserVectorNormalizer;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class SlopeOneModelProviderTest {
 
@@ -43,11 +41,10 @@ public class SlopeOneModelProviderTest {
     private SlopeOneModel getModel(List<Rating> ratings) {
         StaticDataSource source = StaticDataSource.fromList(ratings);
         DataAccessObject dao = source.get();
-        ItemDAO idao = new BridgeItemDAO(dao);
         RatingVectorPDAO rvDAO = new StandardRatingVectorPDAO(dao);
         ItemItemBuildContextProvider contextFactory = new ItemItemBuildContextProvider(
                 rvDAO, new DefaultUserVectorNormalizer());
-        SlopeOneModelProvider provider = new SlopeOneModelProvider(idao, contextFactory.get(), 0);
+        SlopeOneModelProvider provider = new SlopeOneModelProvider(contextFactory.get(), 0);
         return provider.get();
     }
 

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -22,9 +22,8 @@ package org.lenskit.data.entities;
 
 import com.google.common.base.Preconditions;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * General-purpose builder for {@linkplain Entity entities}.
@@ -38,14 +37,14 @@ public class BasicEntityBuilder extends EntityBuilder {
      */
     public BasicEntityBuilder(EntityType type) {
         super(type);
-        attributes = new HashMap<>();
+        attributes = new LinkedHashMap<>();
     }
 
     @Override
     public <T> EntityBuilder setAttribute(TypedName<T> name, T val) {
         Preconditions.checkNotNull(name, "attribute");
         Preconditions.checkNotNull(val, "value");
-        Preconditions.checkArgument(name.getType().isInstance(val),
+        Preconditions.checkArgument(name.getRawType().isInstance(val),
                                     "value %s not of type %s", val, name.getType());
         if (name == CommonAttributes.ENTITY_ID) {
             return setId(((Long) val).longValue());
@@ -58,7 +57,7 @@ public class BasicEntityBuilder extends EntityBuilder {
     @Override
     public EntityBuilder clearAttribute(TypedName<?> name) {
         Preconditions.checkNotNull(name, "attribute");
-        attributes.remove(name);
+        attributes.remove(name.getName());
         if (name == CommonAttributes.ENTITY_ID) {
             idSet = false;
         }
@@ -72,7 +71,21 @@ public class BasicEntityBuilder extends EntityBuilder {
         if (attributes.isEmpty() || attributes.keySet().equals(Collections.singleton(CommonAttributes.ENTITY_ID))) {
             return new BareEntity(type, id);
         } else {
-            return new BasicEntity(type, id, attributes);
+            List<TypedName<?>> names = new ArrayList<>(attributes.size());
+            names.add(CommonAttributes.ENTITY_ID);
+            for (Attribute<?> a: attributes.values()) {
+                names.add(a.getTypedName());
+            }
+            assert names.lastIndexOf(CommonAttributes.ENTITY_ID) == 0;
+
+            AttributeSet aset = AttributeSet.create(names);
+            Object[] values = new Object[aset.size()];
+            for (Attribute<?> a: attributes.values()) {
+                int i = aset.lookup(a.getTypedName());
+                values[i-1] = a.getValue();
+            }
+
+            return new BasicEntity(type, id, aset, values);
         }
     }
 }

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -23,6 +23,7 @@ package org.lenskit.data.entities;
 import com.google.common.base.*;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.apache.commons.lang3.reflect.ConstructorUtils;
 import org.lenskit.util.keys.KeyExtractor;
 
@@ -123,20 +124,26 @@ public final class Entities {
         return ID_KEY_EX;
     }
 
-    /**
-     * Function that extracts an entity's type.
-     * @return A function that extracts an entity's type.
-     */
-    public static Function<Entity,EntityType> extractType() {
-        return EntityTypeFunc.INSTANCE;
-    }
-
     public static <T> Function<Entity,T> attributeValueFunction(final TypedName<T> name) {
         return new Function<Entity, T>() {
             @Nullable
             @Override
             public T apply(@Nullable Entity input) {
                 return input == null ? null : input.maybeGet(name);
+            }
+        };
+    }
+
+    /**
+     * Function that returns entity types' names.
+     * @return A function that returns entity types' names.
+     */
+    public static Function<EntityType,String> entityTypeNameFunction() {
+        return new Function<EntityType, String>() {
+            @Nullable
+            @Override
+            public String apply(@Nullable EntityType input) {
+                return input == null ? null : input.getName();
             }
         };
     }
@@ -170,8 +177,10 @@ public final class Entities {
                 EntityBuilder builder = null;
                 try {
                     builder = ctor.get().newInstance(e.getType());
-                } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
-                    throw new RuntimeException("cannot invoke " + ctor.get(), ex);
+                } catch (IllegalAccessException | InstantiationException ex) {
+                    throw new VerifyException(ctor.get() + " cannot be instantiated", ex);
+                } catch (InvocationTargetException ex) {
+                    throw new UncheckedExecutionException("error invoking " + ctor.get(), ex);
                 }
                 for (Attribute<?> attr: e.getAttributes()) {
                     builder.setAttribute(attr);
@@ -194,14 +203,7 @@ public final class Entities {
         if (viewClass.equals(Entity.class)) {
             return (Function) Functions.identity();
         } else {
-            return new Function<Entity, E>() {
-                @Nullable
-                @Override
-                public E apply(@Nullable Entity input) {
-                    assert input != null;
-                    return project(input, viewClass);
-                }
-            };
+            return n -> project(n, viewClass);
         }
     }
 
@@ -224,15 +226,4 @@ public final class Entities {
 
     private static Ordering<Entity> ID_ORDER = new IdOrder();
     private static KeyExtractor<Entity> ID_KEY_EX = new IdKeyEx();
-
-    private static enum EntityTypeFunc implements Function<Entity,EntityType> {
-        INSTANCE;
-
-        @Nullable
-        @Override
-        public EntityType apply(@Nullable Entity input) {
-            Preconditions.checkNotNull(input);
-            return input.getType();
-        }
-    }
 }

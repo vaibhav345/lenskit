@@ -1,7 +1,9 @@
+sudo: false
+dist: trusty
 language: java
 jdk:
-- oraclejdk7
 - oraclejdk8
+- openjdk8
 branches:
   except:
   - www
@@ -16,9 +18,11 @@ before_install:
 - cp etc/gradle-ci.properties .
 install:
 - "./gradlew ciPrep --stacktrace"
-script: "./gradlew ciTest --stacktrace"
+script: "./gradlew ciTest --stacktrace --scan"
 after_failure:
 - jps -lvm
+after_success:
+- bash <(curl -s https://codecov.io/bash)
 before_cache:
 - rm -f $HOME/.gradle/caches/*/*.lock
 deploy:
@@ -34,16 +38,12 @@ notifications:
       - https://webhooks.gitter.im/e/12b880d9f4086ef2a62c
     on_success: always
     on_failure: always
-  slack:
-    rooms:
-    - secure: "ldy/nkD8cNi3nNv8g+LEDmvsPKcKrHmuwctmCfc/kbmzmvmeG3DDa5RItSXnrmPGJhzbTEKKyrNIeA7U9awA7XYcZ7gSe7S5HogfCULrak2OYvLXVs69yQAP5ZuNF3c/AnuZz8rrE2UObMU22raZYrzrHM+LR7fUnurCaFq0S9w="
-    on_pull_requests: false
 env:
   global:
   - TERM=dumb
   - TZ=CST6CDT
   - MALLOC_ARENA_MAX=2
-  - "_JAVA_OPTIONS='-Xmx512m -XX:MaxPermSize=128m'"
+  - "_JAVA_OPTIONS='-Xmx512m'"
   # SONAR_TOKEN
   - secure: "JSzx8Y50B4uPM5jYyED1d4LdlhxqG0pmGLnNfdHlxfwx3HWn7Trzlip2eNeVXor1OMbQxyDfzOLXjepfXY/lLB3FrmOdkEROy+WnZUBjMM55g+sOKskOzI3FbnKl09uf1hvprzij8UMImfZHgoQIbDgf2GpAmp1vskCVe7BDqsE="
   # SONATYPE_USER
@@ -62,5 +62,3 @@ addons:
     build_command_prepend: "./gradlew clean"
     build_command:   "./gradlew classes"
     branch_pattern: coverity_scan
-
-sudo: false

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,7 +21,7 @@
 package org.lenskit.data.entities;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
+import net.jcip.annotations.Immutable;
 import java.util.Collections;
 import java.util.Set;
 
@@ -30,19 +30,21 @@ import java.util.Set;
  */
 @Immutable
 class BareEntity extends AbstractEntity {
+    static final Set<String> ATTRIBUTE_NAMES = Collections.singleton("id");
+    static final Set<TypedName<?>> TYPED_ATTRIBUTE_NAMES = Collections.<TypedName<?>>singleton(CommonAttributes.ENTITY_ID);
 
-    public BareEntity(EntityType t, long eid) {
+    BareEntity(EntityType t, long eid) {
         super(t, eid);
     }
 
     @Override
     public Set<String> getAttributeNames() {
-        return Collections.singleton("id");
+        return ATTRIBUTE_NAMES;
     }
 
     @Override
     public Set<TypedName<?>> getTypedAttributeNames() {
-        return Collections.<TypedName<?>>singleton(CommonAttributes.ENTITY_ID);
+        return TYPED_ATTRIBUTE_NAMES;
     }
 
     @Override
@@ -55,11 +57,12 @@ class BareEntity extends AbstractEntity {
         return name == CommonAttributes.ENTITY_ID;
     }
 
+    @SuppressWarnings("unchecked")
     @Nullable
     @Override
     public <T> T maybeGet(TypedName<T> name) {
         return name == CommonAttributes.ENTITY_ID
-                ? name.getType().cast(getId())
+                ? (T) name.getRawType().cast(getId())
                 : null;
     }
 

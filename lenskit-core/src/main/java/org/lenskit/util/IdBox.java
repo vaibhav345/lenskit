@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,7 +24,8 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.lenskit.util.keys.KeyedObject;
 
-import javax.annotation.concurrent.Immutable;
+import net.jcip.annotations.Immutable;
+import java.util.function.Function;
 
 /**
  * A box that associates an object with an ID.
@@ -76,6 +77,16 @@ public final class IdBox<T> implements KeyedObject {
      */
     public T getValue() {
         return object;
+    }
+
+    /**
+     * Transform the value in a box.
+     * @param function The function to apply.
+     * @param <R> The function return type.
+     * @return An ID box with the same ID but whose value is the result of applying the function to this box's value.
+     */
+    public <R> IdBox<R> mapValue(Function<? super T, ? extends R> function) {
+        return create(id, function.apply(getValue()));
     }
 
     @Override

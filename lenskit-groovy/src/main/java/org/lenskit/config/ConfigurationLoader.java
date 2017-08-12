@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -25,9 +25,9 @@ import groovy.lang.*;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.grouplens.grapht.util.ClassLoaders;
-import org.grouplens.lenskit.util.ClassDirectory;
 import org.lenskit.LenskitConfiguration;
 import org.lenskit.RecommenderConfigurationException;
+import org.lenskit.util.ClassDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,7 +90,7 @@ public class ConfigurationLoader {
      * @throws RecommenderConfigurationException
      */
     public LenskitConfigScript loadScript(GroovyCodeSource source, URI base) throws RecommenderConfigurationException {
-        logger.info("loading script from {}", source.getName());
+        logger.debug("loading script from {}", source.getName());
         LenskitConfigScript script;
         try {
             script = (LenskitConfigScript) shell.parse(source);
@@ -140,6 +140,7 @@ public class ConfigurationLoader {
      */
     public LenskitConfigScript loadScript(@Nonnull File file) throws IOException, RecommenderConfigurationException {
         Preconditions.checkNotNull(file, "Configuration file");
+        logger.info("loading recommender configuration from {}", file);
         return loadScript(new GroovyCodeSource(file), file.toURI());
     }
 

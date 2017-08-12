@@ -20,25 +20,58 @@
  */
 
 
-import org.grouplens.lenskit.transform.normalize.MeanCenteringVectorNormalizer
-import org.grouplens.lenskit.transform.normalize.VectorNormalizer
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap
 import org.grouplens.lenskit.transform.truncate.VectorTruncator
 import org.lenskit.api.ItemScorer
 import org.lenskit.api.RatingPredictor
 import org.lenskit.baseline.BaselineScorer
 import org.lenskit.baseline.ItemMeanRatingItemScorer
+import org.lenskit.bias.BiasModel
+import org.lenskit.bias.ItemBiasModel
 import org.lenskit.knn.NeighborhoodSize
 import org.lenskit.knn.item.ItemItemScorer
+import org.lenskit.knn.item.ItemSimilarity
 import org.lenskit.knn.item.ModelSize
-import org.lenskit.knn.item.model.*
+import org.lenskit.knn.item.model.ItemItemModel
+import org.lenskit.knn.item.model.NormalizingItemItemModelProvider
+import org.lenskit.knn.item.model.StandardVectorTruncatorProvider
+import org.lenskit.similarity.VectorSimilarity
+import org.lenskit.transform.normalize.BiasUserVectorNormalizer
+import org.lenskit.transform.normalize.UserVectorNormalizer
+
+import javax.inject.Inject
+
+class NonSymmetricSimilarity implements ItemSimilarity {
+    final VectorSimilarity delegate
+
+    @Inject
+    NonSymmetricSimilarity(VectorSimilarity dlg) {
+        delegate = dlg
+    }
+
+    @Override
+    double similarity(long i1, Long2DoubleMap v1, long i2, Long2DoubleMap v2) {
+        return delegate.similarity(v1, v2)
+    }
+
+    @Override
+    boolean isSparse() {
+        return delegate.isSparse()
+    }
+
+    @Override
+    boolean isSymmetric() {
+        return false
+    }
+}
 
 def common = {
     bind ItemScorer to ItemItemScorer
     set NeighborhoodSize to 20
     set ModelSize to 500
-    bind ItemItemBuildContext toProvider ItemwiseBuildContextProvider
-    within (ItemItemBuildContext) {
-        bind VectorNormalizer to MeanCenteringVectorNormalizer
+    bind UserVectorNormalizer to BiasUserVectorNormalizer
+    within (UserVectorNormalizer) {
+        bind BiasModel to ItemBiasModel
     }
     bind (BaselineScorer, ItemScorer) to ItemMeanRatingItemScorer
     at (RatingPredictor) {
@@ -49,6 +82,10 @@ def common = {
 
 algorithm("Standard") {
     include common
+}
+algorithm("NonSymmetric") {
+    include common
+    bind ItemSimilarity to NonSymmetricSimilarity
 }
 algorithm("Normalizing") {
     include common

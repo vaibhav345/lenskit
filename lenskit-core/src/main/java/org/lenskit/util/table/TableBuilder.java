@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -23,6 +23,7 @@ package org.lenskit.util.table;
 import org.apache.commons.lang3.builder.Builder;
 import org.lenskit.util.table.writer.AbstractTableWriter;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -64,6 +65,8 @@ public class TableBuilder extends AbstractTableWriter implements Builder<Table> 
     @Override
     public void close() {}
 
+    @Override
+    public void flush() throws IOException {}
 
     @Override
     public void writeRow(List<?> row) {

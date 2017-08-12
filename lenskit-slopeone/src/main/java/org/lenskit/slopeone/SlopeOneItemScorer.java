@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -23,9 +23,6 @@ package org.lenskit.slopeone;
 import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongIterators;
-import org.grouplens.lenskit.vectors.ImmutableSparseVector;
-import org.grouplens.lenskit.vectors.SparseVector;
-import org.grouplens.lenskit.vectors.VectorEntry;
 import org.lenskit.api.ItemScorer;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultMap;
@@ -33,6 +30,7 @@ import org.lenskit.basic.AbstractItemScorer;
 import org.lenskit.data.ratings.PreferenceDomain;
 import org.lenskit.data.ratings.RatingVectorPDAO;
 import org.lenskit.results.Results;
+import org.lenskit.util.math.Vectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,16 +60,15 @@ public class SlopeOneItemScorer extends AbstractItemScorer {
     @Override
     public ResultMap scoreWithDetails(long user, @Nonnull Collection<Long> items) {
         Long2DoubleMap ratings = dao.userRatingVector(user);
-        SparseVector userVector = ImmutableSparseVector.create(ratings);
 
         List<Result> results = new ArrayList<>();
         LongIterator iter = LongIterators.asLongIterator(items.iterator());
         while (iter.hasNext()) {
             final long predicteeItem = iter.nextLong();
-            if (!userVector.containsKey(predicteeItem)) {
+            if (!ratings.containsKey(predicteeItem)) {
                 double total = 0;
                 int nitems = 0;
-                for (VectorEntry e: userVector) {
+                for (Long2DoubleMap.Entry e: Vectors.fastEntries(ratings)) {
                     long currentItem = e.getKey();
                     int nusers = model.getCoratings(predicteeItem, currentItem);
                     if (nusers != 0) {

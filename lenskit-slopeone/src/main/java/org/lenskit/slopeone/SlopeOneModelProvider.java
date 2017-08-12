@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,14 +20,12 @@
  */
 package org.lenskit.slopeone;
 
+import it.unimi.dsi.fastutil.longs.Long2DoubleSortedMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import org.lenskit.inject.Transient;
-import org.lenskit.data.dao.ItemDAO;
 import org.lenskit.knn.item.model.ItemItemBuildContext;
-import org.grouplens.lenskit.vectors.SparseVector;
 
-import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import javax.inject.Provider;
 
@@ -43,12 +41,11 @@ public class SlopeOneModelProvider implements Provider<SlopeOneModel> {
     private final ItemItemBuildContext buildContext;
 
     @Inject
-    public SlopeOneModelProvider(@Transient @Nonnull ItemDAO dao,
-                                 @Transient ItemItemBuildContext context,
+    public SlopeOneModelProvider(@Transient ItemItemBuildContext context,
                                  @DeviationDamping double damping) {
 
         buildContext = context;
-        accumulator = new SlopeOneModelDataAccumulator(damping, dao);
+        accumulator = new SlopeOneModelDataAccumulator(damping, context.getItems());
     }
 
     /**
@@ -60,12 +57,12 @@ public class SlopeOneModelProvider implements Provider<SlopeOneModel> {
         LongIterator outer = items.iterator();
         while (outer.hasNext()) {
             final long item1 = outer.nextLong();
-            final SparseVector vec1 = buildContext.itemVector(item1);
+            final Long2DoubleSortedMap vec1 = buildContext.itemVector(item1);
             LongIterator inner = items.iterator();
             while (inner.hasNext()) {
                 final long item2 = inner.nextLong();
                 if (item1 != item2) {
-                    SparseVector vec2 = buildContext.itemVector(item2);
+                    Long2DoubleSortedMap vec2 = buildContext.itemVector(item2);
                     accumulator.putItemPair(item1, vec1, item2, vec2);
                 }
             }

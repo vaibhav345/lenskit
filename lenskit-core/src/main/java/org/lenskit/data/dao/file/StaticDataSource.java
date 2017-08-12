@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,20 +24,19 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Sets;
-import org.grouplens.lenskit.util.io.Describable;
-import org.grouplens.lenskit.util.io.DescriptionWriter;
-import org.grouplens.lenskit.util.io.LKFileUtils;
+import com.google.common.collect.*;
+import com.google.common.util.concurrent.Monitor;
 import org.lenskit.data.dao.DataAccessException;
 import org.lenskit.data.dao.DataAccessObject;
 import org.lenskit.data.dao.EntityCollectionDAOBuilder;
 import org.lenskit.data.entities.*;
 import org.lenskit.data.ratings.PreferenceDomain;
 import org.lenskit.data.ratings.PreferenceDomainBuilder;
+import org.lenskit.util.describe.Describable;
+import org.lenskit.util.describe.DescriptionWriter;
+import org.lenskit.util.io.LKFileUtils;
 import org.lenskit.util.io.ObjectStream;
+import org.lenskit.util.parallel.Blockers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +63,8 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
     private List<EntitySource> sources;
     private ListMultimap<EntityType, TypedName<?>> indexedAttributes;
     private Set<EntityDerivation> derivations = Sets.newLinkedHashSet();
-    private transient volatile SoftReference<DataAccessObject> cachedDao;
+    private final Monitor monitor = new Monitor();
+    private volatile SoftReference<DataAccessObject> cachedDao;
 
     /**
      * Construct a new data layout object.
@@ -142,6 +142,20 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
     }
 
     /**
+     * Add a derived entity to the data source.  Derived entities are synthesized from IDs found in attributes
+     * of other entities (effectively *foreign keys*).  This allows for things such as extracting the set of
+     * users or items from a file of ratings.
+     *
+     * The derived entities will not overwrite entities from other
+     * sources with the same ID.
+     *
+     * @param deriv The entity derivation.
+     */
+    public void addDerivedEntity(EntityDerivation deriv) {
+        derivations.add(deriv);
+    }
+
+    /**
      * Get the list of entity sources.
      * @return The list of entity sources.
      */
@@ -174,7 +188,13 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
         SoftReference<DataAccessObject> cache = cachedDao;
         DataAccessObject dao = cache != null ? cache.get() : null;
         if (dao == null) {
-            synchronized (this) {
+            try {
+                Blockers.enterMonitor(monitor);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new DataAccessException("data load interrupted", e);
+            }
+            try {
                 // did someone else make a DAO?
                 cache = cachedDao;
                 dao = cache != null ? cache.get() : null;
@@ -186,6 +206,8 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
                         throw new DataAccessException("cannot load data", e);
                     }
                 }
+            } finally {
+                monitor.leave();
             }
         }
 
@@ -216,9 +238,30 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
     }
 
     private DataAccessObject makeDAO() throws IOException {
+        logger.info("creating DAO for {}", name);
         Set<EntityType> types = new HashSet<>();
 
         EntityCollectionDAOBuilder builder = new EntityCollectionDAOBuilder();
+        SetMultimap<EntityType, EntitySource.Layout> layouts = HashMultimap.create();
+        for (EntitySource source: sources) {
+            logger.debug("source {} declares types {} and layout {}",
+                         source, source.getTypes(), source.getLayout());
+            for (EntityType et: source.getTypes()) {
+                layouts.put(et, source.getLayout());
+            }
+        }
+        for (Map.Entry<EntityType, Collection<EntitySource.Layout>> e: layouts.asMap().entrySet()) {
+            EntitySource.Layout layout = null;
+            layout = Iterables.getFirst(e.getValue(), null);
+            if (layout != null && e.getValue().size() == 1) {
+                assert layout.getEntityType() == e.getKey();
+                logger.info("using static layout {}", layout);
+                builder.addEntityLayout(layout.getEntityType(), layout.getAttributes(), layout.getEntityBuilder());
+            } else {
+                logger.debug("found {} layouts for entity type {}", e.getValue().size(), e.getKey());
+            }
+        }
+
         builder.addDefaultIndex(CommonAttributes.USER_ID);
         builder.addDefaultIndex(CommonAttributes.ITEM_ID);
         for (Map.Entry<EntityType,TypedName<?>> iae: indexedAttributes.entries()) {
@@ -243,8 +286,8 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
 
         for (EntityDerivation deriv: derivations) {
             TypedName<Long> column = deriv.getAttribute();
-            logger.info("deriving entity type {} from {} (column {})",
-                        deriv.getType(), deriv.getSourceType(), column);
+            logger.debug("deriving entity type {} from {} (column {})",
+                         deriv.getType(), deriv.getSourceType(), column);
             builder.deriveEntities(deriv.getType(), deriv.getSourceType(), column);
         }
 
@@ -282,22 +325,33 @@ public class StaticDataSource implements Provider<DataAccessObject>, Describable
         if (name == null && object.has("name")) {
             name = object.get("name").asText();
         }
-        StaticDataSource layout = new StaticDataSource(name);
+        final StaticDataSource layout = new StaticDataSource(name);
+        EntitySources.ParseHandler handler = new EntitySources.ParseHandler() {
+            @Override
+            public void handleEntitySource(EntitySource source) {
+                layout.addSource(source);
+            }
+
+            @Override
+            public void handleEntityDerivation(EntityDerivation deriv) {
+                layout.addDerivedEntity(deriv);
+            }
+        };
 
         if (object.isArray()) {
             for (JsonNode source: object) {
-                layout.addSource(EntitySources.fromJSON(null, source, base));
+                EntitySources.fromJSON(null, source, base, handler);
             }
         } else if (object.isObject()) {
             if (object.has("file") || object.has("type")) {
                 // the whole object describes one data source
-                layout.addSource(EntitySources.fromJSON(null, object, base));
+                EntitySources.fromJSON(null, object, base, handler);
             } else {
                 // the object describes multiple data sources
                 Iterator<Map.Entry<String, JsonNode>> iter = object.fields();
                 while (iter.hasNext()) {
                     Map.Entry<String, JsonNode> entry = iter.next();
-                    layout.addSource(EntitySources.fromJSON(entry.getKey(), entry.getValue(), base));
+                    EntitySources.fromJSON(entry.getKey(), entry.getValue(), base, handler);
                 }
             }
         } else {

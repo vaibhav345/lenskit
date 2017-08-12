@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,8 +21,13 @@
 package org.lenskit.data.dao.file;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.lenskit.data.entities.AttributeSet;
+import org.lenskit.data.entities.EntityBuilder;
 import org.lenskit.data.entities.EntityType;
 
+import javax.annotation.Nonnegative;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -36,9 +41,26 @@ public interface EntityFormat {
     EntityType getEntityType();
 
     /**
+     * Get the set of attributes entities from format may have, if known.
+     *
+     * @return The set of attributes that entities may have, or `null` if that information is not known.
+     */
+    @Nullable
+    AttributeSet getAttributes();
+
+    /**
+     * Get the entity builder that this format will use.
+     *
+     * @return The entity builder used by this format.
+     */
+    @Nonnull
+    Class<? extends EntityBuilder> getEntityBuilder();
+
+    /**
      * Get the number of header lines this format uses.
      * @return The number of header lines to read at the beginning of the file.
      */
+    @Nonnegative
     int getHeaderLines();
 
     /**

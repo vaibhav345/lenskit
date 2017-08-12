@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,6 +20,9 @@
  */
 package org.lenskit.eval.crossfold;
 
+import org.lenskit.data.entities.CommonAttributes;
+import org.lenskit.data.entities.CommonTypes;
+
 public final class CrossfoldMethods {
     private CrossfoldMethods() {}
 
@@ -30,7 +33,9 @@ public final class CrossfoldMethods {
      * @return The crossfold method.
      */
     public static CrossfoldMethod partitionUsers(SortOrder order, HistoryPartitionMethod part) {
-        return new UserPartitionCrossfoldMethod(order, part);
+        return new GroupedCrossfoldMethod(CommonTypes.USER, CommonAttributes.USER_ID,
+                                          GroupEntitySplitter.partition(),
+                                          order, part);
     }
 
     /**
@@ -41,7 +46,9 @@ public final class CrossfoldMethods {
      * @return The crossfold method.
      */
     public static CrossfoldMethod sampleUsers(SortOrder order, HistoryPartitionMethod part, int size) {
-        return new UserSampleCrossfoldMethod(order, part, size);
+        return new GroupedCrossfoldMethod(CommonTypes.USER, CommonAttributes.USER_ID,
+                                          GroupEntitySplitter.disjointSample(size),
+                                          order, part);
     }
 
     /**
@@ -50,5 +57,28 @@ public final class CrossfoldMethods {
      */
     public static CrossfoldMethod partitionEntities() {
         return new EntityPartitionCrossfoldMethod();
+    }
+
+    /**
+     * Create a crossfold method that splits items into disjoint partitions.
+     * @param part the partition algorithm for item ratings.
+     * @return The crossfold method.
+     */
+    public static CrossfoldMethod partitionItems(HistoryPartitionMethod part) {
+        return new GroupedCrossfoldMethod(CommonTypes.ITEM, CommonAttributes.ITEM_ID,
+                                          GroupEntitySplitter.partition(),
+                                          SortOrder.RANDOM, part);
+    }
+
+    /**
+     * Create a crossfold method that splits items into disjoint samples.
+     * @param part the partition algorithm for item ratings.
+     * @param size The number of items per sample.
+     * @return The crossfold method.
+     */
+    public static CrossfoldMethod sampleItems(HistoryPartitionMethod part, int size) {
+        return new GroupedCrossfoldMethod(CommonTypes.ITEM, CommonAttributes.ITEM_ID,
+                                          GroupEntitySplitter.disjointSample(size),
+                                          SortOrder.RANDOM, part);
     }
 }

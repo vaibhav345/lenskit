@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,20 +20,24 @@
  */
 package org.lenskit.config
 
-import org.grouplens.lenskit.vectors.similarity.PearsonCorrelation
-import org.grouplens.lenskit.vectors.similarity.SignificanceWeightedVectorSimilarity
-import org.grouplens.lenskit.vectors.similarity.VectorSimilarity
 import org.junit.Test
 import org.lenskit.LenskitConfiguration
 import org.lenskit.LenskitRecommenderEngine
+import org.lenskit.RecommenderConfigurationException
 import org.lenskit.api.ItemScorer
 import org.lenskit.baseline.ItemMeanRatingItemScorer
 import org.lenskit.basic.ConstantItemScorer
 import org.lenskit.basic.SimpleRatingPredictor
 import org.lenskit.basic.TopNItemRecommender
+import org.lenskit.bias.BiasModel
+import org.lenskit.bias.GlobalBiasModel
 import org.lenskit.data.dao.DataAccessObject
 import org.lenskit.data.dao.file.StaticDataSource
+import org.lenskit.transform.normalize.BiasUserVectorNormalizer
+import org.lenskit.transform.normalize.UserVectorNormalizer
 
+import static junit.framework.Assert.fail
+import static org.grouplens.lenskit.util.test.ExtraMatchers.matchesPattern
 import static org.hamcrest.Matchers.*
 import static org.junit.Assert.assertThat
 
@@ -83,8 +87,9 @@ class ConfigLoadingTest {
     @Test
     void testLoadNewRoot() {
         LenskitConfiguration config = ConfigHelpers.load {
-            root VectorSimilarity
-            bind VectorSimilarity to PearsonCorrelation
+            root UserVectorNormalizer
+            bind UserVectorNormalizer to BiasUserVectorNormalizer
+            bind BiasModel to GlobalBiasModel
         }
         def engine = LenskitRecommenderEngine.build(config, dao)
         def rec = engine.createRecommender(dao)
@@ -92,8 +97,8 @@ class ConfigLoadingTest {
             assertThat(rec.getItemScorer(), nullValue());
             assertThat(rec.getItemRecommender(), nullValue())
             assertThat(rec.getItemBasedItemRecommender(), nullValue());
-            assertThat(rec.get(VectorSimilarity),
-                       instanceOf(PearsonCorrelation))
+            assertThat(rec.get(UserVectorNormalizer),
+                       instanceOf(BiasUserVectorNormalizer))
         } finally {
             rec.close()
         }
@@ -102,10 +107,10 @@ class ConfigLoadingTest {
     @Test
     void testLoadWithinBlock() {
         LenskitConfiguration config = ConfigHelpers.load {
-            root VectorSimilarity
-            bind VectorSimilarity to SignificanceWeightedVectorSimilarity
-            within(VectorSimilarity) {
-                bind VectorSimilarity to PearsonCorrelation
+            root UserVectorNormalizer
+            bind UserVectorNormalizer to BiasUserVectorNormalizer
+            within (UserVectorNormalizer) {
+                bind BiasModel to GlobalBiasModel
             }
         }
         def engine = LenskitRecommenderEngine.build(config, dao)
@@ -114,10 +119,10 @@ class ConfigLoadingTest {
             assertThat(rec.getItemScorer(), nullValue());
             assertThat(rec.getItemRecommender(), nullValue())
             assertThat(rec.getItemBasedItemRecommender(), nullValue());
-            def sim = rec.get(VectorSimilarity)
+            def sim = rec.get(UserVectorNormalizer)
             assertThat(sim,
-                       instanceOf(SignificanceWeightedVectorSimilarity))
-            assertThat(sim.delegate, instanceOf(PearsonCorrelation))
+                       instanceOf(BiasUserVectorNormalizer))
+            assertThat(sim.model, instanceOf(GlobalBiasModel))
         } finally {
             rec.close()
         }
@@ -210,6 +215,22 @@ set ConstantItemScorer.Value to Math.PI""");
             assertThat(dom.precision, equalTo(0.5d))
         } finally {
             rec.close()
+        }
+    }
+
+    @Test
+    public void testMissingClassErrors() {
+        ConfigurationLoader loader = new ConfigurationLoader()
+        LenskitConfigScript script = loader.loadScript(
+                """
+root PreferenceDomain
+""")
+        def config
+        try {
+            config = script.configure()
+            fail("script load should fail")
+        } catch (RecommenderConfigurationException rce) {
+            assertThat(rce.hints, contains(matchesPattern(/.*import.*\s+org\.lenskit\.data\.ratings\.PreferenceDomain/)))
         }
     }
 }

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,19 +20,17 @@
  */
 package org.lenskit.slopeone;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongIterator;
-import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.*;
 import org.apache.commons.lang3.tuple.Pair;
-import org.lenskit.data.dao.ItemDAO;
-import org.grouplens.lenskit.vectors.*;
+import org.lenskit.util.keys.KeyedObjectMap;
+import org.lenskit.util.keys.KeyedObjectMapBuilder;
+import org.lenskit.util.keys.SortedKeyIndex;
 
 import java.util.Map;
 
 public class SlopeOneModelDataAccumulator {
 
-    private Long2ObjectMap<MutableSparseVector> workMatrix;
+    private Long2ObjectMap<Pair<Long2DoubleMap, Long2IntMap>> workMatrix;
     private double damping;
 
     /**
@@ -40,18 +38,17 @@ public class SlopeOneModelDataAccumulator {
      * a {@code SlopeOneItemScorer}.
      *
      * @param damping   A damping term for deviation calculations.
-     * @param dao       The DataAccessObject interfacing with the data for the model
+     * @param items     The set of known item IDs.
      */
-    public SlopeOneModelDataAccumulator(double damping, ItemDAO dao) {
+    public SlopeOneModelDataAccumulator(double damping, LongSet items) {
         this.damping = damping;
-        LongSet items = dao.getItemIds();
 
         workMatrix = new Long2ObjectOpenHashMap<>(items.size());
         LongIterator iter = items.iterator();
         while (iter.hasNext()) {
             long item = iter.nextLong();
-            workMatrix.put(item, MutableSparseVector.create(items));
-            workMatrix.get(item).addChannelVector(SlopeOneModel.CORATINGS_SYMBOL);
+            workMatrix.put(item, Pair.<Long2DoubleMap, Long2IntMap>of(new Long2DoubleOpenHashMap(),
+                                                                      new Long2IntOpenHashMap()));
         }
     }
 
@@ -63,7 +60,7 @@ public class SlopeOneModelDataAccumulator {
      * @param id2      The id of the second item.
      * @param itemVec2 The rating vector of the second item.
      */
-    public void putItemPair(long id1, SparseVector itemVec1, long id2, SparseVector itemVec2) {
+    public void putItemPair(long id1, Long2DoubleSortedMap itemVec1, long id2, Long2DoubleSortedMap itemVec2) {
         if (workMatrix == null) {
             throw new IllegalStateException("Model is already built");
         }
@@ -72,14 +69,19 @@ public class SlopeOneModelDataAccumulator {
         if (id1 < id2) {
             int coratings = 0;
             double deviation = 0.0;
-            for (Pair<VectorEntry,VectorEntry> pair: SparseVector.fastIntersect(itemVec1, itemVec2)) {
-                coratings++;
-                deviation += pair.getLeft().getValue() - pair.getRight().getValue();
+            LongIterator iter = itemVec1.keySet().iterator();
+            while (iter.hasNext()) {
+                long u = iter.nextLong();
+                if (itemVec2.containsKey(u)) {
+                    coratings++;
+                    deviation += itemVec1.get(u) - itemVec2.get(u);
+                }
             }
             deviation = (coratings == 0) ? Double.NaN : deviation;
 
-            workMatrix.get(id1).set(id2, deviation);
-            workMatrix.get(id1).getChannelVector(SlopeOneModel.CORATINGS_SYMBOL).set(id2, coratings);
+            Pair<Long2DoubleMap, Long2IntMap> row = workMatrix.get(id1);
+            row.getLeft().put(id2, deviation);
+            row.getRight().put(id2, coratings);
         }
     }
 
@@ -87,27 +89,33 @@ public class SlopeOneModelDataAccumulator {
      * @return A matrix of item deviation and corating values to be used by
      *         a {@code SlopeOneItemScorer}.
      */
-    public Long2ObjectMap<ImmutableSparseVector> buildMatrix() {
+    public KeyedObjectMap<SlopeOneModel.ModelRow> buildMatrix() {
         if (workMatrix == null) {
             throw new IllegalStateException("Model is already built");
         }
 
-        Long2ObjectMap<ImmutableSparseVector> matrix =
-                new Long2ObjectOpenHashMap<>(workMatrix.size());
+        KeyedObjectMapBuilder<SlopeOneModel.ModelRow> builder = KeyedObjectMap.newBuilder();
 
-        for (MutableSparseVector vec : workMatrix.values()) {
-            for (VectorEntry e : vec) {
-                double deviation = e.getValue();
-                int coratings = (int)vec.getChannelVector(SlopeOneModel.CORATINGS_SYMBOL).get(e);
-                vec.set(e, deviation/(coratings + damping));
+        for (Map.Entry<Long, Pair<Long2DoubleMap, Long2IntMap>> e : workMatrix.entrySet()) {
+            Long2DoubleMap vec = e.getValue().getLeft();
+            Long2IntMap cor = e.getValue().getRight();
+            SortedKeyIndex idx = SortedKeyIndex.fromCollection(vec.keySet());
+            int n = idx.size();
+            double[] deviations = new double[n];
+            int[] counts = new int[n];
+
+            for (int i = 0; i < n; i++) {
+                long item = idx.getKey(i);
+                double deviation = vec.get(item);
+                int coratings = cor.get(item);
+                deviations[i] = deviation / (coratings + damping);
+                counts[i] = coratings;
             }
-        }
 
-        for (Map.Entry<Long, MutableSparseVector> e : workMatrix.entrySet()) {
-            matrix.put(e.getKey(), e.getValue().freeze());
+            builder.add(new SlopeOneModel.ModelRow(e.getKey(), idx, deviations, counts));
         }
 
         workMatrix = null;
-        return matrix;
+        return builder.build();
     }
 }

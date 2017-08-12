@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -89,5 +89,20 @@ class PrefixedTableWriter extends AbstractTableWriter {
             // reset the row
             rowData.removeElements(fixedColumns, rowData.size());
         }
+    }
+
+    @Override
+    public void flush() throws IOException {
+        baseWriter.flush();
+    }
+
+    /**
+     * No-op close implementation. Closing a prefixed writer does *not* close the
+     * underlying writer.  It does, however, flush it.
+     * @throws IOException if there is an error flushing the writer.
+     */
+    @Override
+    public void close() throws IOException {
+        baseWriter.flush();
     }
 }

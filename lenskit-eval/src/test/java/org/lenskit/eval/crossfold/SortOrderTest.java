@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,7 +21,6 @@
 package org.lenskit.eval.crossfold;
 
 import org.junit.Test;
-import org.lenskit.data.events.Event;
 import org.lenskit.data.ratings.Rating;
 
 import java.util.ArrayList;
@@ -29,22 +28,22 @@ import java.util.List;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
 
 public class SortOrderTest {
     @Test
     public void testRandom() {
-        List<Event> events = new ArrayList<>();
+        List<Rating> events = new ArrayList<>();
         events.add(Rating.create(42, 1, 3.5, 100));
         events.add(Rating.create(42, 2, 4.0, 105));
         events.add(Rating.create(42, 3, 2.5, 98));
 
-        List<Event> copy = new ArrayList<>(events);
+        List<Rating> copy = new ArrayList<>(events);
 
         SortOrder.RANDOM.apply(copy, new Random());
 
         assertThat(copy, hasSize(3));
-        for (Event e: events) {
+        for (Rating e: events) {
             assertThat(copy, hasItem(e));
         }
     }

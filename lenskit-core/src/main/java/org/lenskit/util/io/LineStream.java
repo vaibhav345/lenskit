@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,7 +24,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import com.google.common.io.Files;
 import org.apache.commons.lang3.text.StrTokenizer;
-import org.grouplens.lenskit.util.io.CompressionMode;
 import org.lenskit.data.dao.DataAccessException;
 
 import javax.annotation.Nonnull;

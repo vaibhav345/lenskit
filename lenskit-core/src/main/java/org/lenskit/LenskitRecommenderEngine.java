@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -29,7 +29,7 @@ import org.grouplens.grapht.reflect.Qualifiers;
 import org.grouplens.grapht.reflect.Satisfaction;
 import org.grouplens.grapht.reflect.internal.InstanceSatisfaction;
 import org.grouplens.grapht.solver.DependencySolver;
-import org.grouplens.lenskit.util.io.CompressionMode;
+import org.lenskit.util.io.CompressionMode;
 import org.lenskit.api.RecommenderBuildException;
 import org.lenskit.api.RecommenderEngine;
 import org.lenskit.data.dao.DataAccessObject;
@@ -60,14 +60,21 @@ import java.io.*;
  * @see LenskitRecommenderEngineBuilder
  * @see LenskitRecommenderEngineLoader
  */
-public final class LenskitRecommenderEngine implements RecommenderEngine {
+public final class LenskitRecommenderEngine implements RecommenderEngine, Serializable {
+    private static final long serialVersionUID = 1L;
     private static final Logger logger = LoggerFactory.getLogger(LenskitRecommenderEngine.class);
 
     private final DAGNode<Component, Dependency> graph;
     private final boolean instantiable;
 
-    LenskitRecommenderEngine(@Nonnull DAGNode<Component,Dependency> graph,
-                             boolean instantiable) {
+    /**
+     * Build an engine encapsulating a dependency graph.  You generally do not want to use this - use
+     * {@link LenskitRecommenderEngineBuilder} instead.
+     * @param graph The graph.
+     * @param instantiable `true` if the recommender can be instantiated as-is, `false` otherwise.
+     */
+    public LenskitRecommenderEngine(@Nonnull DAGNode<Component,Dependency> graph,
+                                    boolean instantiable) {
         Preconditions.checkNotNull(graph, "configuration graph");
         this.graph = graph;
         this.instantiable = instantiable;
@@ -187,8 +194,6 @@ public final class LenskitRecommenderEngine implements RecommenderEngine {
      * Construct a recommender with some additional configuration.  This can be used to do things
      * like add data source configuration on a per-recommender, rather than per-engine, basis.
      *
-     * This method is only used for special cases needing detailed access to the recommender.
-     *
      * @param config The configuration to adjust the recommender.
      * @return The constructed recommender.
      * @throws RecommenderConfigurationException if there is an error configuring the recommender.
@@ -210,7 +215,7 @@ public final class LenskitRecommenderEngine implements RecommenderEngine {
         return createRecommender(config);
     }
 
-    public DAGNode<Component, Dependency> createRecommenderGraph(LenskitConfiguration config) throws RecommenderConfigurationException {
+    private DAGNode<Component, Dependency> createRecommenderGraph(LenskitConfiguration config) throws RecommenderConfigurationException {
         Preconditions.checkNotNull(config, "extra configuration");
         final DAGNode<Component, Dependency> toBuild;
         RecommenderGraphBuilder rgb = new RecommenderGraphBuilder();

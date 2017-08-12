@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -26,7 +26,9 @@ import it.unimi.dsi.fastutil.longs.Long2DoubleFunction;
 import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import it.unimi.dsi.fastutil.longs.LongList;
 import org.apache.commons.lang3.StringUtils;
-import org.grouplens.lenskit.util.statistics.MeanAccumulator;
+import org.lenskit.util.math.MeanAccumulator;
+import org.lenskit.api.Recommender;
+import org.lenskit.api.RecommenderEngine;
 import org.lenskit.eval.traintest.AlgorithmInstance;
 import org.lenskit.eval.traintest.DataSet;
 import org.lenskit.eval.traintest.TestUser;
@@ -63,7 +65,7 @@ public class TopNNDPMMetric extends ListOnlyTopNMetric<MeanAccumulator> {
 
     @Nullable
     @Override
-    public MeanAccumulator createContext(AlgorithmInstance algorithm, DataSet dataSet, org.lenskit.api.Recommender recommender) {
+    public MeanAccumulator createContext(AlgorithmInstance algorithm, DataSet dataSet, RecommenderEngine engine) {
         return new MeanAccumulator();
     }
 
@@ -75,7 +77,7 @@ public class TopNNDPMMetric extends ListOnlyTopNMetric<MeanAccumulator> {
 
     @Nonnull
     @Override
-    public MetricResult measureUser(TestUser user, int targetLength, LongList recommendations, MeanAccumulator context) {
+    public MetricResult measureUser(Recommender rec, TestUser user, int targetLength, LongList recommendations, MeanAccumulator context) {
         if (recommendations == null) {
             return MetricResult.empty();
         }
@@ -90,7 +92,9 @@ public class TopNNDPMMetric extends ListOnlyTopNMetric<MeanAccumulator> {
 
         double nDPM = dpm / normalizingFactor; // Normalized nDPM
 
-        context.add(nDPM);
+        synchronized (context) {
+            context.add(nDPM);
+        }
 
         return MetricResult.singleton(DEFAULT_COLUMN, nDPM);
     }

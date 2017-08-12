@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -35,13 +35,13 @@ import java.net.URISyntaxException;
 import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
 
 public class TextEntitySourceTest {
     private ObjectReader reader = new ObjectMapper().reader();
 
     @Test
-    public void testMinimalJSONConfig() throws IOException {
+    public void testMinimalTSVConfig() throws IOException {
         JsonNode node = reader.readTree("{\"file\": \"ratings.tsv\", \"name\": \"woozle\"}");
         EntitySource raw = EntitySources.fromJSON(node, Paths.get("").toUri());
         assertThat(raw, notNullValue());
@@ -56,6 +56,16 @@ public class TextEntitySourceTest {
         assertThat(format.getHeaderLines(), equalTo(0));
         assertThat(format.usesHeader(), equalTo(false));
         assertThat(format.getEntityBuilder(), equalTo((Class) RatingBuilder.class));
+
+        EntitySource.Layout layout = src.getLayout();
+        assertThat(layout, notNullValue());
+        assertThat(layout.getEntityType(), equalTo(CommonTypes.RATING));
+        assertThat(layout.getAttributes(),
+                   containsInAnyOrder(CommonAttributes.ENTITY_ID,
+                                      CommonAttributes.USER_ID,
+                                      CommonAttributes.ITEM_ID,
+                                      CommonAttributes.RATING,
+                                      CommonAttributes.TIMESTAMP));
     }
 
     @Test
@@ -70,6 +80,7 @@ public class TextEntitySourceTest {
         assertThat(format.getEntityType(), equalTo(EntityType.forName("rating")));
         assertThat(format.getHeaderLines(), equalTo(0));
         assertThat(format.usesHeader(), equalTo(false));
+        assertThat(format.getBaseId(), equalTo(0L));
         assertThat(format.getEntityBuilder(), equalTo((Class) RatingBuilder.class));
     }
 
@@ -116,6 +127,39 @@ public class TextEntitySourceTest {
         assertThat(format.getHeaderLines(), equalTo(2));
         assertThat(format.usesHeader(), equalTo(false));
         assertThat(format.getEntityBuilder(), equalTo((Class) RatingBuilder.class));
+    }
+
+    @Test
+    public void testBaseIdConfig() throws IOException {
+        JsonNode node = reader.readTree("{\"file\": \"ratings.tsv\", \"base_id\": 100}");
+        TextEntitySource fr = TextEntitySource.fromJSON("test", node, Paths.get("").toUri());
+        assertThat(fr, notNullValue());
+        assertThat(fr.getURL(), equalTo(Paths.get("ratings.tsv").toUri().toURL()));
+        assertThat(fr.getFormat(), instanceOf(DelimitedColumnEntityFormat.class));
+        DelimitedColumnEntityFormat format = (DelimitedColumnEntityFormat) fr.getFormat();
+        assertThat(format.getDelimiter(), equalTo("\t"));
+        assertThat(format.getEntityType(), equalTo(EntityType.forName("rating")));
+        assertThat(format.getBaseId(), equalTo(100L));
+        assertThat(format.getEntityBuilder(), equalTo((Class) RatingBuilder.class));
+    }
+
+    @Test
+    public void testJSONConfig() throws IOException {
+        JsonNode node = reader.readTree("{\"file\": \"ratings.json\", \"name\": \"woozle\", \"format\": \"json\", \"entity_type\": \"item\"}");
+        EntitySource raw = EntitySources.fromJSON(node, Paths.get("").toUri());
+        assertThat(raw, notNullValue());
+        assertThat(raw, instanceOf(TextEntitySource.class));
+        TextEntitySource src = (TextEntitySource) raw;
+        assertThat(src.getName(), equalTo("woozle"));
+        assertThat(src.getURL(), equalTo(Paths.get("ratings.json").toUri().toURL()));
+        assertThat(src.getFormat(), instanceOf(JSONEntityFormat.class));
+        JSONEntityFormat format = (JSONEntityFormat) src.getFormat();
+        assertThat(format.getEntityType(), equalTo(CommonTypes.ITEM));
+        assertThat(format.getHeaderLines(), equalTo(0));
+        assertThat(format.getEntityBuilder(), equalTo((Class) BasicEntityBuilder.class));
+
+        assertThat(src.getLayout(),
+                   nullValue());
     }
 
     @Test
@@ -208,6 +252,14 @@ public class TextEntitySourceTest {
                                                 "  \"rating\": \"rating\"\n" +
                                                 "}}");
         TextEntitySource fr = TextEntitySource.fromJSON("test", node, baseURI);
+        EntitySource.Layout layout = fr.getLayout();
+        assertThat(layout, notNullValue());
+        assertThat(layout.getEntityType(), equalTo(CommonTypes.RATING));
+        assertThat(layout.getAttributes(),
+                   containsInAnyOrder(CommonAttributes.ENTITY_ID,
+                                      CommonAttributes.USER_ID,
+                                      CommonAttributes.ITEM_ID,
+                                      CommonAttributes.RATING));
 
         try (ObjectStream<Entity> stream = fr.openStream()) {
             Entity first = stream.readObject();
@@ -235,4 +287,27 @@ public class TextEntitySourceTest {
             assertThat(stream.readObject(), nullValue());
         }
     }
+    @Test
+    public void testConfigureItemJSON() throws IOException, URISyntaxException {
+        URI baseURI = TextEntitySourceTest.class.getResource("header-ratings.csv").toURI();
+        JsonNode node = reader.readTree("{\"file\": \"items.json\", \"format\": \"json\", \"entity_type\": \"item\"}");
+        TextEntitySource fr = TextEntitySource.fromJSON("test", node, baseURI);
+
+        try (ObjectStream<Entity> stream = fr.openStream()) {
+            Entity first = stream.readObject();
+            assertThat(first.getType(), equalTo(CommonTypes.ITEM));
+            assertThat(first.getId(), equalTo(42L));
+            assertThat(first.get(CommonAttributes.ENTITY_ID), equalTo(42L));
+            assertThat(first.get(CommonAttributes.NAME), equalTo("woozle"));
+
+            Entity second = stream.readObject();
+            assertThat(second.getType(), equalTo(CommonTypes.ITEM));
+            assertThat(second.getId(), equalTo(37L));
+            assertThat(second.get(CommonAttributes.ENTITY_ID), equalTo(37L));
+            assertThat(second.get(CommonAttributes.NAME), equalTo("heffalump"));
+
+            assertThat(stream.readObject(), nullValue());
+        }
+    }
+
 }

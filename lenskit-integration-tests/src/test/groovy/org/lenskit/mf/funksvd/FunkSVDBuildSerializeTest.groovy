@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -28,11 +28,14 @@ import org.lenskit.LenskitRecommenderEngine
 import org.lenskit.ModelDisposition
 import org.lenskit.api.ItemScorer
 import org.lenskit.api.RecommenderBuildException
-import org.lenskit.baseline.*
+import org.lenskit.baseline.BaselineScorer
+import org.lenskit.baseline.MeanDamping
+import org.lenskit.bias.BiasModel
+import org.lenskit.bias.UserItemBiasModel
 import org.lenskit.config.ConfigHelpers
-import org.lenskit.data.dao.ItemDAO
 
-import static org.hamcrest.Matchers.*
+import static org.hamcrest.Matchers.instanceOf
+import static org.hamcrest.Matchers.notNullValue
 import static org.junit.Assert.assertThat
 
 /**
@@ -41,14 +44,12 @@ import static org.junit.Assert.assertThat
 public class FunkSVDBuildSerializeTest extends ML100KTestSuite {
     def config = ConfigHelpers.load {
         bind ItemScorer to FunkSVDItemScorer
-        bind (BaselineScorer, ItemScorer) to UserMeanItemScorer
-        bind (UserMeanBaseline, ItemScorer) to ItemMeanRatingItemScorer
+        bind BiasModel to UserItemBiasModel
         set FeatureCount to 10
         set IterationCount to 10
         within (BaselineScorer, ItemScorer) {
             set MeanDamping to 25
         }
-        root ItemDAO
     }
 
 

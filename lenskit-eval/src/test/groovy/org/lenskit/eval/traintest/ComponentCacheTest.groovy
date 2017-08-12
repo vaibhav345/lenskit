@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,9 +24,6 @@ import org.grouplens.grapht.CachePolicy
 import org.grouplens.grapht.Component
 import org.grouplens.grapht.graph.DAGNode
 import org.grouplens.grapht.reflect.Satisfactions
-import org.lenskit.data.dao.DataAccessObject
-import org.lenskit.data.dao.EventCollectionDAO
-import org.lenskit.data.dao.EventDAO
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -34,6 +31,7 @@ import org.junit.rules.TemporaryFolder
 import org.lenskit.api.ItemScorer
 import org.lenskit.baseline.ItemMeanRatingItemScorer
 import org.lenskit.config.ConfigHelpers
+import org.lenskit.data.dao.DataAccessObject
 import org.lenskit.data.dao.file.StaticDataSource
 import org.lenskit.data.ratings.Rating
 

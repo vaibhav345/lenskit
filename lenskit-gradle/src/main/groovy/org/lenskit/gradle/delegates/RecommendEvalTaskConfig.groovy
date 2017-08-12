@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -46,16 +46,28 @@ class RecommendEvalTaskConfig extends EvalTaskConfig {
      */
     def String labelPrefix
 
+    /**
+     * The per-item output file for separated evaluations.
+     */
+    def itemOutputFile
+
+    /**
+     * Whether or not to treat items separately (Bellogin's 1R).
+     */
+    def boolean separateItems = false
+
     RecommendEvalTaskConfig(Project prj) {
         super(prj, 'recommend')
     }
 
     @Override
     Map getJson() {
-        return super.getJson() + [listSize: listSize,
+        return super.getJson() + [list_size: listSize,
                                   candidates: candidates,
                                   exclude: exclude,
-                                  label_prefix: labelPrefix]
+                                  label_prefix: labelPrefix,
+                                  item_output_file: makeUrl(itemOutputFile),
+                                  separate_items: separateItems]
     }
 
     void listSize(int sz) {
@@ -82,5 +94,13 @@ class RecommendEvalTaskConfig extends EvalTaskConfig {
 
     void labelPrefix(String pfx) {
         labelPrefix = pfx
+    }
+
+    void separateItems(boolean sep) {
+        separateItems = sep
+    }
+
+    void itemOutputFile(f) {
+        itemOutputFile = f
     }
 }

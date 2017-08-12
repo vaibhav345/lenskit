@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,10 +20,7 @@
  */
 package org.lenskit.util.keys;
 
-import it.unimi.dsi.fastutil.longs.AbstractLong2DoubleMap;
-import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
-import it.unimi.dsi.fastutil.longs.Long2DoubleSortedMap;
-import it.unimi.dsi.fastutil.longs.LongSortedSet;
+import it.unimi.dsi.fastutil.longs.*;
 import it.unimi.dsi.fastutil.objects.ObjectBidirectionalIterator;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
@@ -33,7 +30,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import static net.java.quickcheck.generator.CombinedGeneratorsIterables.someMaps;
 import static net.java.quickcheck.generator.CombinedGeneratorsIterables.someSets;
+import static net.java.quickcheck.generator.CombinedGenerators.sets;
 import static net.java.quickcheck.generator.PrimitiveGenerators.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
@@ -133,6 +132,58 @@ public class Long2DoubleSortedArrayMapTest {
     }
 
     @Test
+    public void testSubMap() {
+        SortedKeyIndex idx = SortedKeyIndex.create(1, 2, 3, 4, 5);
+        double[] values = { 1.5, 2.4, -3.2, 4.3, -5.7 };
+        Long2DoubleSortedArrayMap map = new Long2DoubleSortedArrayMap(idx, values);
+        assertThat(map.size(), equalTo(5));
+
+        Long2DoubleSortedMap sub = map.subMap(LongUtils.packedSet(2L, 4L));
+        assertThat(sub.size(), equalTo(2));
+        assertThat(sub.containsKey(2L), equalTo(true));
+        assertThat(sub.containsKey(1L), equalTo(false));
+        assertThat(sub.containsKey(5L), equalTo(false));
+        assertThat(sub.containsKey(4L), equalTo(true));
+        assertThat(sub.containsKey(3L), equalTo(false));
+        assertThat(sub.keySet(), contains(2L, 4L));
+        assertThat(sub, hasEntry(2L, 2.4));
+        assertThat(sub, hasEntry(4L, 4.3));
+    }
+
+    @Test
+    public void testSubMapUnpacked() {
+        SortedKeyIndex idx = SortedKeyIndex.create(1, 2, 3, 4, 5);
+        double[] values = { 1.5, 2.4, -3.2, 4.3, -5.7 };
+        Long2DoubleSortedArrayMap map = new Long2DoubleSortedArrayMap(idx, values);
+        assertThat(map.size(), equalTo(5));
+
+        Long2DoubleSortedMap sub = map.subMap(new LongOpenHashSet(LongUtils.packedSet(2L, 10L, 4L)));
+        assertThat(sub.size(), equalTo(2));
+        assertThat(sub.containsKey(2L), equalTo(true));
+        assertThat(sub.containsKey(1L), equalTo(false));
+        assertThat(sub.containsKey(5L), equalTo(false));
+        assertThat(sub.containsKey(4L), equalTo(true));
+        assertThat(sub.containsKey(3L), equalTo(false));
+        assertThat(sub.keySet(), contains(2L, 4L));
+        assertThat(sub, hasEntry(2L, 2.4));
+        assertThat(sub, hasEntry(4L, 4.3));
+    }
+
+    @Test
+    public void testRandomMaps() {
+        for (Map<Long,Double> map: someMaps(longs(), doubles())) {
+            Long2DoubleSortedArrayMap vec = Long2DoubleSortedArrayMap.create(map);
+            Set<Long> picked = sets(map.keySet()).next();
+            Set<Long> extra = sets(longs()).next();
+            LongSortedSet wanted = LongUtils.setUnion(LongUtils.asLongSet(picked), LongUtils.asLongSet(extra));
+            Long2DoubleSortedMap sv = vec.subMap(wanted);
+            assertThat(sv.keySet(), everyItem(isIn(wanted)));
+            assertThat(sv.keySet(), containsInAnyOrder(picked.toArray()));
+            assertThat(sv.entrySet(), everyItem(isIn(map.entrySet())));
+        }
+    }
+
+    @Test
     public void testIterStartFrom() {
         double[] values = { 1.5, 2.4, -3.2, 4.3, -5.7 };
         Long2DoubleSortedMap map = new Long2DoubleSortedArrayMap(SortedKeyIndex.create(1, 2, 3, 4, 5),
@@ -171,5 +222,21 @@ public class Long2DoubleSortedArrayMapTest {
         assertThat(res, hasEntry(37L, 4.9));
         assertThat(res, hasEntry(42L, 3.5));
         assertThat(res, hasEntry(62L, 1.8));
+    }
+
+    @Test
+    public void testSubMapIndexes() {
+        Long2DoubleMap map = new Long2DoubleOpenHashMap();
+        map.put(1, 1.0);
+        map.put(2, 2.0);
+        map.put(3, 3.0);
+        map.put(4, 4.0);
+        Long2DoubleSortedArrayMap sam = Long2DoubleSortedArrayMap.create(map);
+        Long2DoubleSortedArrayMap s2 = sam.subMap(2, 4);
+        assertThat(s2.keySet(), contains(2L, 3L));
+        assertThat(s2.getKeyByIndex(0), equalTo(2L));
+        assertThat(s2.getKeyByIndex(1), equalTo(3L));
+        assertThat(s2.getValueByIndex(0), equalTo(2.0));
+        assertThat(s2.getValueByIndex(1), equalTo(3.0));
     }
 }

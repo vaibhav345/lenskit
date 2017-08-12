@@ -2,8 +2,9 @@
 
 [![Build Status](https://travis-ci.org/lenskit/lenskit.png?branch=master)](https://travis-ci.org/lenskit/lenskit)
 [![Windows build status](https://ci.appveyor.com/api/projects/status/github/lenskit/lenskit?branch=master)](https://ci.appveyor.com/project/elehack/lenskit)
-[![SonarQube test coverage](https://img.shields.io/sonar/https/sonarqube.com/lenskit/coverage.svg)](https://sonarqube.com/overview?id=1068589)
-[![SonarQube technical debt](https://img.shields.io/sonar/https/sonarqube.com/lenskit/tech_debt.svg)](https://sonarqube.com/overview?id=1068589)
+[![Test coverage](https://codecov.io/gh/lenskit/lenskit/branch/master/graph/badge.svg)](https://codecov.io/gh/lenskit/lenskit)
+[![SonarQube test coverage](https://sonarcloud.io/api/badges/measure?key=lenskit&metric=coverage)](https://sonarcloud.io/dashboard?id=lenskit)
+[![SonarQube technical debt](https://sonarcloud.io/api/badges/measure?key=lenskit&metric=sqale_debt_ratio)](https://sonarcloud.io/dashboard?id=lenskit)
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/9190.svg)](https://scan.coverity.com/projects/lenskit-lenskit)
 [![Join the chat at https://gitter.im/lenskit/lenskit](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/lenskit/lenskit?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
@@ -17,8 +18,8 @@ with LensKit we recommend checking out the [Getting Started][] guide.
 
 [web site]: http://lenskit.org
 [wiki]: http://github.com/lenskit/lenskit/wiki/
-[Getting Started]: http://github.com/lenskit/lenskit/wiki/GettingStarted
-[mailing list]: https://wwws.cs.umn.edu/mm-cs/listinfo/lenskit
+[Getting Started]: http://lenskit.org/documentation/basics/getting-started/
+[mailing list]: https://groups.google.com/forum/#!forum/lenskit-recsys
 
 LensKit is made available under the GNU Lesser General Public License
 (LGPL), version 2.1 or later.
@@ -38,12 +39,10 @@ also be checked out and used in most Java IDEs.
 ## Working with the Code
 
 To work with the LensKit code, import the Gradle project into your IDE.
-IntelliJ IDEA includes support for Gradle projects, and this support works well
-for LensKit in version 13 and later.  Gradle plugins are available for other
-IDEs such as Eclipse.
+Most modern Java IDEs include support for Gradle, including IntelliJ IDEA (used
+by most LensKit developers), Eclipse, and NetBeans.
 
-No particular setup is needed for IntelliJ, which is what most of the LensKit
-developers use.
+No other particular setup is needed.
 
 ## Modules
 
@@ -51,23 +50,23 @@ LensKit is comprised of several modules.  The top-level `lenskit`
 module serves as a container to build them and provide common settings
 and dependencies.  The other modules are as follows:
 
-* `lenskit-api` -- the common, public recommender API exposed by LensKit, independent
+- `lenskit-api` -- the common, public recommender API exposed by LensKit, independent
   of its actual implementations.
-* `lenskit-test` -- infrastructure and helper code for testing.
-* `lenskit-data-structures` -- common data structures used by LensKit.
-  These are split from `-core` so the API can depend on them.
-* `lenskit-core` -- the core support code and configuration facilities for
+- `lenskit-test` -- infrastructure and helper code for testing.
+- `lenskit-core` -- the core support code and configuration facilities for
   the rest of LensKit. It is the entry point for most of what you want to do with
   LensKit, providing support for configuring and building recommenders.
-* `lenskit-knn` -- k-NN recommenders (user-user and item-item collaborative
+- `lenskit-knn` -- k-NN recommenders (user-user and item-item collaborative
   filtering).
-* `lenskit-svd` -- the FunkSVD recommender (and eventually real SVD recommenders).
-* `lenskit-slopeone` -- Slope-One recommenders.
-* `lenskit-eval` -- the evaluation framework and APIs, along with a command line
+- `lenskit-svd` -- the FunkSVD recommender (and eventually real SVD recommenders).
+- `lenskit-slopeone` -- Slope-One recommenders.
+- `lenskit-eval` -- the evaluation framework and APIs, along with a command line
   evaluation runner.
-* `lenskit-all` -- a metapackage you can depend on to pull in the rest of the LensKit packages.
-* `lenskit-cli` -- the LensKit command line interface.
-* `lenskit-integration-tests` -- additional integration tests for LensKit.
+- `lenskit-groovy` -- support for reading LensKit configurations from Groovy files.
+- `lenskit-all` -- a metapackage you can depend on to pull in the rest of the LensKit packages.
+- `lenskit-cli` -- the LensKit command line interface.
+- `lenskit-gradle` -- the Gradle plugin to script the LensKit evaluator
+- `lenskit-integration-tests` -- additional integration tests for LensKit.
 
 ## Running the Tests
 
@@ -84,7 +83,7 @@ tests, use Gradle:
 
 LensKit is under the following copyright and license:
 
-Copyright 2010-2014 [LensKit Contributors](CONTRIBUTORS.md).  
+Copyright 2010-2016 [LensKit Contributors](CONTRIBUTORS.md).  
 Work on LensKit has been funded by the National Science Foundation under
 grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
 
@@ -107,7 +106,7 @@ Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 To ease reuse, the LensKit build system (all `.gradle` files and the contents
 of the `buildSrc` directory) are licensed under the 3-clause BSD license:
 
-Copyright 2010-2014 LensKit Contributors
+Copyright 2010-2016 LensKit Contributors
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -141,7 +140,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   
 We welcome contribution to LensKit.  If you are looking for something
 to work on, we recommend perusing the open tickets on GitHub
-or asking on the [mailing list](https://wwws.cs.umn.edu/mm-cs/listinfo/lenskit).
+or asking on the [mailing list][].
 
 We prefer to receive code submissions as GitHub pull requests.  To
 do this:

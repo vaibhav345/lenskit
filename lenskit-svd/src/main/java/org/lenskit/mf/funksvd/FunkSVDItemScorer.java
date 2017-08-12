@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,12 +20,11 @@
  */
 package org.lenskit.mf.funksvd;
 
+import org.lenskit.bias.BiasModel;
 import org.lenskit.data.ratings.PreferenceDomain;
 import org.lenskit.mf.svd.BiasedMFItemScorer;
 import org.lenskit.mf.svd.DomainClampingKernel;
 import org.lenskit.mf.svd.DotProductKernel;
-import org.lenskit.api.ItemScorer;
-import org.lenskit.baseline.BaselineScorer;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -45,7 +44,7 @@ public class FunkSVDItemScorer extends BiasedMFItemScorer {
      * @param dom      The preference domain.
      */
     @Inject
-    public FunkSVDItemScorer(FunkSVDModel model, @BaselineScorer ItemScorer baseline,
+    public FunkSVDItemScorer(FunkSVDModel model, BiasModel baseline,
                              @Nullable PreferenceDomain dom) {
         super(model,
               dom == null ? new DotProductKernel() : new DomainClampingKernel(dom),

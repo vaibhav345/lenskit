@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,14 +20,13 @@
  */
 package org.grouplens.lenskit.transform.truncate;
 
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import org.grouplens.lenskit.transform.threshold.RealThreshold;
-import org.grouplens.lenskit.vectors.MutableSparseVector;
-import org.grouplens.lenskit.vectors.VectorEntry;
 import org.junit.Test;
+import org.lenskit.util.keys.Long2DoubleSortedArrayMap;
 
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
 
 public class ThresholdTruncatorTest {
 
@@ -37,15 +36,15 @@ public class ThresholdTruncatorTest {
     public void testTruncate() {
         long[] keys = {1, 2, 3, 4};
         double[] values = {1.0, 2.0, 3.0, 4.0};
-        MutableSparseVector v = MutableSparseVector.wrap(keys, values);
+        Long2DoubleSortedArrayMap v = Long2DoubleSortedArrayMap.wrapUnsorted(keys, values);
 
         VectorTruncator truncator = new ThresholdTruncator(new RealThreshold(3.5));
-        truncator.truncate(v);
+        Long2DoubleMap v2 = truncator.truncate(v);
 
         int numSeen = 0;
-        for (VectorEntry e : v.view(VectorEntry.State.SET)) {
-            assertThat(e.getKey(), equalTo(4L));
-            assertThat(e.getValue(), closeTo(4.0, EPSILON));
+        for (Long2DoubleMap.Entry e: v2.long2DoubleEntrySet()) {
+            assertThat(e.getLongKey(), equalTo(4L));
+            assertThat(e.getDoubleValue(), closeTo(4.0, EPSILON));
             numSeen++;
         }
         assertThat(numSeen, equalTo(1));

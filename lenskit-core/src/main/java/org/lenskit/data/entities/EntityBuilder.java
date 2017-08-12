@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -63,7 +63,7 @@ public abstract class EntityBuilder {
 
     /**
      * Set an attribute in the entity.
-     * @param attr The attributre to set.
+     * @param attr The attribute to set.
      * @param <T> The attribute type.
      * @return The entity builder (for chaining).
      * @throws NoSuchAttributeException if the specified attribute is not supported by this entity.
@@ -71,6 +71,28 @@ public abstract class EntityBuilder {
     public <T> EntityBuilder setAttribute(Attribute<T> attr) {
         setAttribute(attr.getTypedName(), attr.getValue());
         return this;
+    }
+
+    /**
+     * Set an attribute in the entity.
+     * @param name The name of the attribute to set.
+     * @param val The attribute value.
+     * @return The entity builder (for chaining).
+     * @throws NoSuchAttributeException if the specified attribute is not supported by this entity.
+     */
+    public EntityBuilder setLongAttribute(TypedName<Long> name, long val) {
+        return setAttribute(name, val);
+    }
+
+    /**
+     * Set an attribute in the entity.
+     * @param name The name of the attribute to set.
+     * @param val The attribute value.
+     * @return The entity builder (for chaining).
+     * @throws NoSuchAttributeException if the specified attribute is not supported by this entity.
+     */
+    public EntityBuilder setDoubleAttribute(TypedName<Double> name, double val) {
+        return setAttribute(name, val);
     }
 
     /**

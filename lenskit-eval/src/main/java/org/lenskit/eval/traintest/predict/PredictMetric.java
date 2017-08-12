@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -57,6 +57,10 @@ public abstract class PredictMetric<X> extends Metric<X> {
 
     /**
      * Measure a single result.  The result may come from either prediction or recommendation.
+     *
+     * **Thread Safety:** This method may be called concurrently by multiple threads with the same recommender and
+     * context.
+     *
      * @param user The user's test data.
      * @param predictions The predictions.
      * @return A list of fields to add to the result's output.

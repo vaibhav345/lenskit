@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -28,6 +28,7 @@ import org.grouplens.grapht.ResolutionException;
 import org.grouplens.grapht.context.ContextPattern;
 import org.grouplens.grapht.graph.DAGNode;
 import org.lenskit.api.*;
+import org.lenskit.data.dao.DataAccessObject;
 import org.lenskit.inject.AbstractConfigContext;
 import org.lenskit.inject.RecommenderGraphBuilder;
 
@@ -51,7 +52,8 @@ public class LenskitConfiguration extends AbstractConfigContext {
             ItemScorer.class,
             ItemRecommender.class,
             ItemBasedItemScorer.class,
-            ItemBasedItemRecommender.class
+            ItemBasedItemRecommender.class,
+            DataAccessObject.class
     };
 
     private final BindingFunctionBuilder bindings;

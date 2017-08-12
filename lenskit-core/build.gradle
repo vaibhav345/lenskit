@@ -41,14 +41,18 @@ dependencies {
     compileOnly group: 'com.google.auto.service', name: 'auto-service', version: '1.0-rc2'
 
     compile project(':lenskit-api')
-    compile group: 'it.unimi.dsi', name:'fastutil', version: '7.0.12'
-    compile group: 'org.grouplens.grapht', name: 'grapht', version: '0.11.0-BETA2'
+
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.12'
+    compile group: 'net.jcip', name: 'jcip-annotations', version: '1.0'
+    compile group: 'it.unimi.dsi', name:'fastutil', version: '8.1.0'
+    compile group: 'org.grouplens.grapht', name: 'grapht', version: '0.11.0-SNAPSHOT'
     compile group: 'com.google.guava', name: 'guava', version: guavaVersion
     compile group: 'org.joda', name: 'joda-convert', version: '1.8.1'
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.7.4'
     compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: '2.7.4'
     compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
     compile group:'org.apache.commons', name:'commons-math3', version:'3.6.1'
+    compile group:'org.ow2.asm', name:'asm-tree', version:'5.2'
 
     compile group: 'org.apache.commons', name: 'commons-compress', version: '1.12'
 
@@ -81,11 +85,11 @@ task versionInfo {
     }
     outputs.file versionFile
     inputs.property 'version', version
-}
-versionInfo << {
-    def vf = file(versionFile)
-    mkdir vf.parentFile
-    vf.text = "lenskit.version=$version\n"
+    doLast {
+        def vf = file(versionFile)
+        mkdir vf.parentFile
+        vf.text = "lenskit.version=$version\n"
+    }
 }
 classes.dependsOn versionInfo
 

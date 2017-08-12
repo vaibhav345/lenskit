@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -98,17 +98,6 @@ class LongListWrapper extends AbstractLongList {
         return base.toArray();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * @deprecated see {@link LongCollection#longIterator()}
-     */
-    @Override
-    @Deprecated
-    public LongIterator longIterator() {
-        return iterator();
-    }
-
     @Override
     public <T> T[] toArray(T[] a) {
         return base.toArray(a);
@@ -170,16 +159,6 @@ class LongListWrapper extends AbstractLongList {
     }
 
     @Override
-    public LongListIterator longListIterator() {
-        return listIterator();
-    }
-
-    @Override
-    public LongListIterator longListIterator(int i) {
-        return listIterator(i);
-    }
-
-    @Override
     public LongListIterator listIterator() {
         return new IterImpl(base.listIterator());
     }
@@ -187,11 +166,6 @@ class LongListWrapper extends AbstractLongList {
     @Override
     public LongListIterator listIterator(int i) {
         return new IterImpl(base.listIterator(i));
-    }
-
-    @Override
-    public LongList longSubList(int i, int i1) {
-        return new LongListWrapper(base.subList(i, i1));
     }
 
     @Override

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -28,14 +28,17 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSortedSet;
 import org.lenskit.LenskitConfiguration;
-import org.lenskit.data.dao.DataAccessObject;
 import org.lenskit.data.dao.file.StaticDataSource;
 import org.lenskit.data.entities.CommonTypes;
+import org.lenskit.data.entities.EntityType;
 import org.lenskit.data.ratings.PreferenceDomain;
+import org.lenskit.util.collections.LongUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.inject.Provider;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -52,33 +55,39 @@ public class DataSet {
     @Nonnull
     private final StaticDataSource trainData;
     @Nullable
-    private final StaticDataSource queryData;
+    private final StaticDataSource runtimeData;
     @Nonnull
     private final StaticDataSource testData;
     @Nonnull
+    private final Provider<LongSet> testUserProvider;
+
+    private volatile transient LongSortedSet allItems;
+    @Nonnull
     private final UUID group;
     private final Map<String, Object> attributes;
+    @Nonnull
+    private final List<EntityType> entityTypes;
 
     /**
      * Create a new data set.
      * @param name The name.
      * @param train The training source.
-     * @param query The query source (if any).
      * @param test The test data source.
      * @param grp The data set isolation group.
      * @param attrs The data set attributes.
      */
     public DataSet(@Nonnull String name,
                    @Nonnull StaticDataSource train,
-                   @Nullable StaticDataSource query,
+                   @Nullable StaticDataSource rt,
                    @Nonnull StaticDataSource test,
                    @Nonnull UUID grp,
-                   Map<String, Object> attrs) {
+                   Map<String, Object> attrs,
+                   @Nonnull List<EntityType> entityTypes) {
         Preconditions.checkNotNull(train, "no training data");
         Preconditions.checkNotNull(test, "no test data");
         this.name = name;
         trainData = train;
-        queryData = query;
+        runtimeData = rt;
         testData = test;
         group = grp;
         if (attrs == null) {
@@ -86,7 +95,17 @@ public class DataSet {
         } else {
             attributes = ImmutableMap.copyOf(attrs);
         }
+        this.entityTypes = ImmutableList.copyOf(entityTypes);
+
+        testUserProvider = new Provider<LongSet>() {
+            @Override
+            public LongSet get() {
+                return testData.get().getEntityIds(CommonTypes.USER);
+            }
+        };
     }
+
+
 
     /**
      * Get the data set name.
@@ -140,32 +159,51 @@ public class DataSet {
     }
 
     /**
-     * Get the query data.
+     * Get the runtime data set. This is the data that should be available when the recommender is run,
+     * but not when its model is trained.
      *
-     * @return A data source containing the query data.
+     * @return The runtime data set.
      */
     @Nullable
-    public StaticDataSource getQueryData() {
-        return queryData;
+    public StaticDataSource getRuntimeData() {
+        return runtimeData;
     }
 
     public LongSet getAllItems() {
-        return trainData.get().getEntityIds(CommonTypes.ITEM);
+        if (allItems == null) {
+            synchronized (this) {
+                if (allItems == null) {
+                    allItems = LongUtils.packedSet(trainData.get().getEntityIds(CommonTypes.ITEM));
+                }
+            }
+        }
+
+        return allItems;
     }
 
     /**
-     * Configure LensKit to have the training data from this data source.
-     *
-     * @param config A configuration in which the training data for this data set should be
-     *               configured.
+     * Get the entity types registered with this builder so far.
+     * @return The entity types registered so far.
      */
-    public void configure(LenskitConfiguration config) {
-        config.bind(DataAccessObject.class)
-              .toProvider(trainData);
-        config.bind(PreferenceDomain.class)
-              .to(trainData.getPreferenceDomain());
-        config.bind(QueryData.class, DataAccessObject.class)
-              .toProvider(StaticDataSource.class);
+    @Nonnull
+    public List<EntityType> getEntityTypes() {
+        return entityTypes;
+    }
+
+    /**
+     * Get extra LensKit configuration required by this data set.
+     *
+     * @return A LensKit configuration with additional configuration data for this data set.
+     */
+    public LenskitConfiguration getExtraConfiguration() {
+        LenskitConfiguration config = new LenskitConfiguration();
+        PreferenceDomain pd = trainData.getPreferenceDomain();
+        if (pd != null) {
+            config.bind(PreferenceDomain.class).to(pd);
+        }
+        config.bind(TestUsers.class, LongSet.class)
+              .toProvider(testUserProvider);
+        return config;
     }
 
     @Override
@@ -216,7 +254,6 @@ public class DataSet {
     public static DataSetBuilder copyBuilder(DataSet data) {
         DataSetBuilder builder = newBuilder(data.getName());
         builder.setTest(data.getTestData())
-               .setQuery(data.getQueryData())
                .setTrain(data.getTrainingData())
                .setIsolationGroup(data.getIsolationGroup());
         for (Map.Entry<String,Object> attr: data.getAttributes().entrySet()) {
@@ -252,7 +289,7 @@ public class DataSet {
         }
 
         ImmutableList.Builder<DataSet> finalSets = ImmutableList.builder();
-        boolean isolate = json.has("isolate") && json.get("isolate").asBoolean();
+        boolean isolate = json.path("isolate").asBoolean(false);
         if (isolate) {
             for (DataSet set: sets) {
                 finalSets.add(set.copyBuilder()
@@ -277,13 +314,36 @@ public class DataSet {
     private static DataSet loadDataSet(JsonNode json, URI base, String name, int part) throws IOException {
         Preconditions.checkArgument(json.has("train"), "%s: no train data specified", name);
         Preconditions.checkArgument(json.has("test"), "%s: no test data specified", name);
+
+        List<EntityType> entityList = new ArrayList<>();
+
+        JsonNode etNode = json.path("entity_types");
+        if (etNode.isArray()) {
+            for (JsonNode node : etNode) {
+                entityList.add(EntityType.forName(node.asText()));
+            }
+        } else if (etNode.isTextual()) {
+            entityList.add(EntityType.forName(etNode.asText()));
+        } else if (etNode.isMissingNode() || etNode.isNull()) {
+            entityList.add(CommonTypes.RATING);
+        } else {
+            throw new IllegalArgumentException("unexpected format for entity_types");
+        }
+
         DataSetBuilder dsb = newBuilder(name);
+
+        dsb.setEntityTypes(entityList);
         if (part >= 0) {
-            dsb.setAttribute("Partition", part);
+            dsb.setName(String.format("%s[%d]", name, part))
+               .setAttribute("DataSet", name)
+               .setAttribute("Partition", part);
         }
         String nbase = part >= 0 ? String.format("%s[%d]", name, part) : name;
         dsb.setTrain(loadDataSource(json.get("train"), base, nbase + ".train"));
         dsb.setTest(loadDataSource(json.get("test"), base, nbase + ".test"));
+        if (json.hasNonNull("runtime")) {
+            dsb.setRuntime(loadDataSource(json.get("runtime"), base, nbase + ".runtime"));
+        }
         if (json.has("group")) {
             dsb.setIsolationGroup(UUID.fromString(json.get("group").asText()));
         }

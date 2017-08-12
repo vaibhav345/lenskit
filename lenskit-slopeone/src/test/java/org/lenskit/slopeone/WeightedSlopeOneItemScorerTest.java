@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -23,13 +23,10 @@ package org.lenskit.slopeone;
 import org.junit.Test;
 import org.lenskit.LenskitConfiguration;
 import org.lenskit.LenskitRecommender;
-import org.lenskit.LenskitRecommenderEngine;
 import org.lenskit.api.ItemScorer;
 import org.lenskit.api.Recommender;
 import org.lenskit.api.RecommenderBuildException;
 import org.lenskit.data.dao.DataAccessObject;
-import org.lenskit.data.dao.EventCollectionDAO;
-import org.lenskit.data.dao.EventDAO;
 import org.lenskit.data.dao.file.StaticDataSource;
 import org.lenskit.data.ratings.PreferenceDomain;
 import org.lenskit.data.ratings.PreferenceDomainBuilder;
@@ -38,8 +35,9 @@ import org.lenskit.data.ratings.Rating;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class WeightedSlopeOneItemScorerTest {
 

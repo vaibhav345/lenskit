@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,6 +21,7 @@
 package org.lenskit.util.collections;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Doubles;
 import it.unimi.dsi.fastutil.longs.*;
 import org.lenskit.util.keys.Long2DoubleSortedArrayMap;
@@ -30,6 +31,8 @@ import org.lenskit.util.keys.SortedKeyIndex;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.*;
+import java.util.function.*;
+import java.util.stream.Collector;
 
 /**
  * Utilities for working with longs and collections of them from Fastutil.
@@ -62,15 +65,14 @@ public final class LongUtils {
      * Create a frozen long set.  If the underlying collection is already an immutable sorted set (specifically, a
      * {@link LongSortedArraySet}, it is used as-is. Otherwise, it is copied into a sorted array set.
      *
+     * This is equivalent to {@link #packedSet(Collection)}.
+     *
      * @param longs The collection.
      * @return The sorted array set.
+     * @see #packedSet(Collection)
      */
     public static LongSortedSet frozenSet(Collection<Long> longs) {
-        if (longs instanceof LongSortedArraySet) {
-            return (LongSortedSet) longs;
-        } else {
-            return packedSet(longs);
-        }
+        return packedSet(longs);
     }
 
     /**
@@ -78,8 +80,12 @@ public final class LongUtils {
      * @param longs A collection of longs.
      * @return An efficient sorted set containing the numbers in {@code longs}.
      */
-    public static LongSortedSet packedSet(Collection<Long> longs) {
-        return SortedKeyIndex.fromCollection(longs).keySet();
+    public static LongSortedArraySet packedSet(Collection<Long> longs) {
+        if (longs instanceof LongSortedArraySet) {
+            return (LongSortedArraySet) longs;
+        } else {
+            return SortedKeyIndex.fromCollection(longs).keySet();
+        }
     }
 
     /**
@@ -87,7 +93,7 @@ public final class LongUtils {
      * @param longs An array of longs.  This array is copied, not wrapped.
      * @return An efficient sorted set containing the numbers in {@code longs}.
      */
-    public static LongSortedSet packedSet(long... longs) {
+    public static LongSortedArraySet packedSet(long... longs) {
         return SortedKeyIndex.create(longs).keySet();
     }
 
@@ -108,6 +114,16 @@ public final class LongUtils {
     }
 
     /**
+     * Create a flyweight vector with a key set and value function.
+     * @param keys The key set.
+     * @param valueFunc Function to compute keys from values.
+     * @return The flyweight map.
+     */
+    public static Long2DoubleMap flyweightMap(LongSet keys, LongToDoubleFunction valueFunc) {
+        return new FlyweightLong2DoubleMap(keys, valueFunc);
+    }
+
+    /**
      * Get a Fastutil {@link it.unimi.dsi.fastutil.longs.LongCollection} from a {@link java.util.Collection} of longs.
      * This method simply casts the collection, if possible, and returns a
      * wrapper otherwise.
@@ -124,17 +140,28 @@ public final class LongUtils {
     }
 
     /**
+     * Wrap or cast a long-to-double map into Fastutil.
+     * @param map The map.
+     * @return A function backed by {@code map}, or {@code map} if it is a Fastutil map.
+     */
+    public static Long2DoubleMap asLong2DoubleMap(final Map<Long,Double> map) {
+        if (map instanceof Long2DoubleMap) {
+            return (Long2DoubleMap) map;
+        } else {
+            return new Long2DoubleMapWrapper(map);
+        }
+    }
+
+    /**
      * Create a long-to-double function from a map, casting if appropriate. Useful to allow unboxed access to maps that
      * are really fastutil maps.
      * @param map The map.
      * @return A function backed by {@code map}, or {@code map} if it is a Fastutil map.
+     * @deprecated see {@link #asLong2DoubleMap(Map)}
      */
-    public static Long2DoubleFunction asLong2DoubleFunction(final Map<Long,Double> map) {
-        if (map instanceof Long2DoubleFunction) {
-            return (Long2DoubleFunction) map;
-        } else {
-            return new Long2DoubleFunctionWrapper(map);
-        }
+    @Deprecated
+    public static Long2DoubleMap asLong2DoubleFunction(final Map<Long,Double> map) {
+        return asLong2DoubleMap(map);
     }
 
     public static LongList asLongList(List<Long> longs) {
@@ -173,6 +200,23 @@ public final class LongUtils {
             return (LongSet) longs;
         } else {
             return new LongSetWrapper(longs);
+        }
+    }
+
+    /**
+     * Get a Fastutil {@link LongSet} from a {@link java.util.Collection} of longs.
+     *
+     * @param longs The set of longs.
+     * @return {@code longs} as a fastutil {@link LongSet}. If {@code longs} is already
+     *         a LongSet, it is cast.
+     */
+    public static LongSet asLongSet(@Nullable final Collection<Long> longs) {
+        if (longs == null) {
+            return null;
+        } else if (longs instanceof Set) {
+            return asLongSet((Set<Long>) longs);
+        } else {
+            return SortedKeyIndex.fromCollection(longs).keySet();
         }
     }
 
@@ -228,6 +272,28 @@ public final class LongUtils {
      */
     public static int intersectSize(LongSortedSet a, LongSortedSet b) {
         return countCommonItems(a, b, -1);
+    }
+
+    /**
+     * Compute the size of the intersection of two sets.
+     * @param a The first set.
+     * @param b The second set.
+     * @return The size of the intersection of the two sets.
+     */
+    public static int intersectSize(LongSet a, LongSet b) {
+        if (a instanceof LongSortedSet && b instanceof LongSortedSet) {
+            return intersectSize((LongSortedSet) a, (LongSortedSet) b);
+        } else {
+            int n = 0;
+            LongIterator iter = a.iterator();
+            while (iter.hasNext()) {
+                long x = iter.nextLong();
+                if (b.contains(x)) {
+                    n += 1;
+                }
+            }
+            return n;
+        }
     }
 
     /**
@@ -292,6 +358,23 @@ public final class LongUtils {
      * @param b The second set.
      * @return The elements of <var>items</var> that are not in <var>exclude</var>.
      */
+    public static LongSortedSet setUnion(LongSet a, LongSet b) {
+        if (a instanceof LongSortedSet && b instanceof LongSortedSet) {
+            return setUnion((LongSortedSet) a, (LongSortedSet) b);
+        } else {
+            LongSet set = new LongOpenHashSet(a);
+            set.addAll(b);
+            return packedSet(set);
+        }
+    }
+
+    /**
+     * Compute the union of two sets.
+     *
+     * @param a The first set.
+     * @param b The second set.
+     * @return The elements of <var>items</var> that are not in <var>exclude</var>.
+     */
     public static LongSortedSet setUnion(LongSortedSet a, LongSortedSet b) {
         long[] data = new long[unionSize(a, b)];
 
@@ -327,6 +410,71 @@ public final class LongUtils {
         assert i == data.length;
 
         return SortedKeyIndex.wrap(data, data.length).keySet();
+    }
+
+    /**
+     * Compute the intersection of two sets.
+     *
+     * @param a The first set.
+     * @param b The second set.
+     * @return The elements present in both sets.
+     */
+    public static LongSortedSet setIntersect(LongSet a, LongSet b) {
+        if (a instanceof LongSortedSet && b instanceof LongSortedSet) {
+            return setIntersect((LongSortedSet) a, (LongSortedSet) b);
+        } else if (a.size() <= b.size()) {
+            LongArrayList longs = new LongArrayList(Math.min(a.size(), b.size()));
+            LongIterator iter = a.iterator();
+            while (iter.hasNext()) {
+                long key = iter.nextLong();
+                if (b.contains(key)) {
+                    longs.add(key);
+                }
+            }
+            return LongUtils.packedSet(longs);
+        } else {
+            return setIntersect(b, a);
+        }
+    }
+
+    /**
+     * Compute the intersection of two sets.
+     *
+     * @param a The first set.
+     * @param b The second set.
+     * @return The elements present in both sets.
+     */
+    public static LongSortedSet setIntersect(LongSortedSet a, LongSortedSet b) {
+        long[] data = new long[Math.min(a.size(), b.size())];
+
+        LongIterator ait = a.iterator();
+        LongIterator bit = b.iterator();
+        boolean hasA = ait.hasNext();
+        boolean hasB = bit.hasNext();
+        long nextA = hasA ? ait.nextLong() : Long.MAX_VALUE;
+        long nextB = hasB ? bit.nextLong() : Long.MAX_VALUE;
+        int i = 0;
+        while (hasA && hasB) {
+            if (nextA < nextB) {
+                hasA = ait.hasNext();
+                nextA = hasA ? ait.nextLong() : Long.MAX_VALUE;
+            } else if (nextB < nextA) {
+                hasB = bit.hasNext();
+                nextB = hasB ? bit.nextLong() : Long.MAX_VALUE;
+            } else {
+                // they're both present and equal, use A but advance both
+                data[i++] = nextA;
+                hasA = ait.hasNext();
+                nextA = hasA ? ait.nextLong() : Long.MAX_VALUE;
+                hasB = bit.hasNext();
+                nextB = hasB ? bit.nextLong() : Long.MAX_VALUE;
+            }
+        }
+        if (data.length > i + i / 2) {
+            data = Arrays.copyOf(data, i);
+        }
+
+        return SortedKeyIndex.wrap(data, i).keySet();
     }
 
     /**
@@ -386,5 +534,63 @@ public final class LongUtils {
             }
         }
         return LongUtils.packedSet(selected);
+    }
+
+    public static <T, E> Collector<T,?,Long2ObjectMap<List<E>>> mapCollector(ToLongFunction<T> kf, Function<T, E> vf) {
+        return new MapCollector<>(kf, vf);
+    }
+
+    private static class MapCollector<T, E> implements Collector<T, Long2ObjectMap<List<E>>, Long2ObjectMap<List<E>>> {
+        private final ToLongFunction<T> keyFunction;
+        private final Function<T, E> valueFunction;
+
+        MapCollector(ToLongFunction<T> kf, Function<T, E> vf) {
+            keyFunction = kf;
+            valueFunction = vf;
+        }
+
+        @Override
+        public Supplier<Long2ObjectMap<List<E>>> supplier() {
+            return Long2ObjectOpenHashMap::new;
+        }
+
+        @Override
+        public BiConsumer<Long2ObjectMap<List<E>>, T> accumulator() {
+            return (m, v) -> {
+                long k = keyFunction.applyAsLong(v);
+                List<E> lst = m.get(k);
+                if (lst == null) {
+                    lst = new ArrayList<>();
+                    m.put(k, lst);
+                }
+                lst.add(valueFunction.apply(v));
+            };
+        }
+
+        @Override
+        public BinaryOperator<Long2ObjectMap<List<E>>> combiner() {
+            return (m1, m2) -> {
+                for (Long2ObjectMap.Entry<List<E>> e2: m2.long2ObjectEntrySet()) {
+                    List<E> l2 = e2.getValue();
+                    List<E> l1 = m1.get(e2.getLongKey());
+                    if (l1 == null) {
+                        m1.put(e2.getLongKey(), l2);
+                    } else {
+                        l1.addAll(l2);
+                    }
+                }
+                return m1;
+            };
+        }
+
+        @Override
+        public Function<Long2ObjectMap<List<E>>, Long2ObjectMap<List<E>>> finisher() {
+            return Function.identity();
+        }
+
+        @Override
+        public Set<Characteristics> characteristics() {
+            return ImmutableSet.of(Characteristics.IDENTITY_FINISH);
+        }
     }
 }

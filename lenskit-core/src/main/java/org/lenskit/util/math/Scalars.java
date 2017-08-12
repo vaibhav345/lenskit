@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -26,6 +26,7 @@ public final class Scalars {
      * the value of that is used; otherwise, {@link Double#MIN_NORMAL}.
      */
     public static final double DEFAULT_EPSILON;
+    private static final double LOG2_ADJ = 1.0 / Math.log(2);
 
     private Scalars() {}
 
@@ -55,5 +56,9 @@ public final class Scalars {
      */
     public static boolean isZero(double val, double epsilon) {
         return Math.abs(val) < epsilon;
+    }
+
+    public static double log2(double x) {
+        return Math.log(x) * LOG2_ADJ;
     }
 }

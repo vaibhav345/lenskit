@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,32 +20,38 @@
  */
 package org.lenskit.data.dao.file;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.text.StrTokenizer;
+import org.lenskit.data.dao.DataAccessException;
 import org.lenskit.data.entities.*;
+import org.lenskit.util.TypeUtils;
+import org.lenskit.util.reflect.InstanceFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import static org.lenskit.data.dao.file.TextEntitySource.parseAttribute;
 
 /**
  * Delimited text column entity format.
  */
 public class DelimitedColumnEntityFormat implements EntityFormat {
+    private static final Logger logger = LoggerFactory.getLogger(DelimitedColumnEntityFormat.class);
     private String delimiter = "\t";
     private int headerLines;
     private boolean readHeader;
+    private long baseId;
     private EntityType entityType = EntityType.forName("rating");
     private Class<? extends EntityBuilder> entityBuilder = BasicEntityBuilder.class;
-    private Constructor<? extends EntityBuilder> entityBuilderCtor;
+    private InstanceFactory<EntityBuilder> builderFactory;
     private List<TypedName<?>> columns;
     private Map<String,TypedName<?>> labeledColumns;
 
@@ -100,6 +106,23 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
     }
 
     /**
+     * Get the base entity ID for this source.
+     * @return The base entity ID.
+     */
+    public long getBaseId() {
+        return baseId;
+    }
+
+    /**
+     * Set the base entity ID for this source.  If an entity column is not defined, then the line number will
+     * be added to this value to obtain a synthetic ID.
+     * @param base The base entity ID.
+     */
+    public void setBaseId(long base) {
+        baseId = base;
+    }
+
+    /**
      * Set the entity type.
      * @param type The entity type.
      */
@@ -122,14 +145,34 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
      */
     public void setEntityBuilder(Class<? extends EntityBuilder> builder) {
         entityBuilder = builder;
+        builderFactory = null;
     }
 
     /**
      * Get the entity builder class.
      * @return The entity builder class.
      */
+    @Override
     public Class<? extends EntityBuilder> getEntityBuilder() {
         return entityBuilder;
+    }
+
+    @Nullable
+    @Override
+    public AttributeSet getAttributes() {
+        List<TypedName<?>> names = new ArrayList<>();
+        names.add(CommonAttributes.ENTITY_ID);
+        if (columns != null) {
+            columns.stream()
+                   .filter(n -> n != CommonAttributes.ENTITY_ID)
+                   .forEach(names::add);
+        } else if (labeledColumns != null) {
+            labeledColumns.values()
+                          .stream()
+                          .filter(n -> n != CommonAttributes.ENTITY_ID)
+                          .forEach(names::add);
+        }
+        return AttributeSet.create(names);
     }
 
     /**
@@ -137,18 +180,10 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
      * @return A new entity builder.
      */
     public EntityBuilder newEntityBuilder() {
-        if (entityBuilderCtor == null || !entityBuilderCtor.getDeclaringClass().equals(entityBuilder)) {
-            try {
-                entityBuilderCtor = entityBuilder.getConstructor(EntityType.class);
-            } catch (NoSuchMethodException e) {
-                throw new IllegalArgumentException("cannot find suitable constructor for " + entityBuilder);
-            }
+        if (builderFactory == null) {
+            builderFactory = InstanceFactory.fromConstructor(entityBuilder, entityType);
         }
-        try {
-            return entityBuilderCtor.newInstance(entityType);
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException("could not instantiate entity builder", e);
-        }
+        return builderFactory.newInstance();
     }
 
     /**
@@ -214,6 +249,18 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
     }
 
     @Override
+    public String toString() {
+        return new ToStringBuilder(this)
+                .append("delim", delimiter)
+                .append("header", headerLines)
+                .append("readHeader", readHeader)
+                .append("entityType", entityType)
+                .append("entityBuilder", entityBuilder)
+                .append("columns", columns != null ? columns.size() : labeledColumns.size())
+                .toString();
+    }
+
+    @Override
     public ObjectNode toJSON() {
         JsonNodeFactory nf = JsonNodeFactory.instance;
 
@@ -221,6 +268,7 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
         json.put("format", "delimited");
         json.put("delimiter", delimiter);
         json.put("entity_type", entityType.getName());
+        json.put("base_id", getBaseId());
         if (readHeader) {
             json.put("header", true);
         } else if (headerLines > 0) {
@@ -231,20 +279,97 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
             for (TypedName<?> col: columns) {
                 ObjectNode colObj = cols.addObject();
                 colObj.put("name", col.getName());
-                colObj.put("type", col.getType().getName());
+                colObj.put("type", TypeUtils.makeTypeName(col.getType()));
             }
         } else if (labeledColumns != null) {
             ObjectNode cols = json.putObject("columns");
             for (Map.Entry<String,TypedName<?>> colE: labeledColumns.entrySet()) {
                 ObjectNode colNode = cols.putObject(colE.getKey());
                 colNode.put("name", colE.getValue().getName());
-                colNode.put("type", colE.getValue().getType().getName());
+                colNode.put("type", TypeUtils.makeTypeName(colE.getValue().getType()));
             }
         } else {
             throw new IllegalStateException("no labels specified");
         }
 
         return json;
+    }
+
+    public static DelimitedColumnEntityFormat fromJSON(String name, ClassLoader loader, JsonNode json) {
+        String fmt = json.path("format").asText("delimited").toLowerCase();
+        String delim;
+        switch (fmt) {
+            case "csv":
+                delim = ",";
+                break;
+            case "tsv":
+            case "delimited":
+                delim = "\t";
+                break;
+            default:
+                throw new IllegalArgumentException("unsupported data format " + fmt);
+        }
+        JsonNode delimNode = json.path("delimiter");
+        if (delimNode.isValueNode()) {
+            delim = delimNode.asText();
+        }
+
+        DelimitedColumnEntityFormat format = new DelimitedColumnEntityFormat();
+        format.setDelimiter(delim);
+        logger.debug("{}: using delimiter {}", name, delim);
+        JsonNode header = json.path("header");
+        boolean canUseColumnMap = false;
+        if (header.isBoolean() && header.asBoolean()) {
+            logger.debug("{}: reading header", name);
+            format.setHeader(true);
+            canUseColumnMap = true;
+        } else if (header.isNumber()) {
+            format.setHeaderLines(header.asInt());
+            logger.debug("{}: skipping {} header lines", format.getHeaderLines());
+        }
+        format.setBaseId(json.path("base_id").asLong(0));
+
+        String eTypeName = json.path("entity_type").asText("rating").toLowerCase();
+        EntityType etype = EntityType.forName(eTypeName);
+        logger.debug("{}: reading entities of type {}", name, etype);
+        EntityDefaults entityDefaults = EntityDefaults.lookup(etype);
+        format.setEntityType(etype);
+        format.setEntityBuilder(entityDefaults != null ? entityDefaults.getDefaultBuilder() : BasicEntityBuilder.class);
+
+        JsonNode columns = json.path("columns");
+        if (columns.isMissingNode() || columns.isNull()) {
+            List<TypedName<?>> defColumns = entityDefaults != null ? entityDefaults.getDefaultColumns() : null;
+            if (defColumns == null) {
+                throw new IllegalArgumentException("no columns specified and no default columns available");
+            }
+
+            for (TypedName<?> attr: entityDefaults.getDefaultColumns()) {
+                format.addColumn(attr);
+            }
+        } else if (columns.isObject()) {
+            if (!canUseColumnMap) {
+                throw new IllegalArgumentException("cannot use column map without file header");
+            }
+            Iterator<Map.Entry<String, JsonNode>> colIter = columns.fields();
+            while (colIter.hasNext()) {
+                Map.Entry<String, JsonNode> col = colIter.next();
+                format.addColumn(col.getKey(), parseAttribute(entityDefaults, col.getValue()));
+            }
+        } else if (columns.isArray()) {
+            for (JsonNode col: columns) {
+                format.addColumn(parseAttribute(entityDefaults, col));
+            }
+        } else {
+            throw new IllegalArgumentException("invalid format for columns");
+        }
+
+        Class<? extends EntityBuilder> eb = TextEntitySource.parseEntityBuilder(loader, json);
+        if (eb != null) {
+            format.setEntityBuilder(eb);
+        }
+        logger.debug("{}: using entity builder {}", format.getEntityBuilder());
+
+        return format;
     }
 
     @Override
@@ -285,14 +410,20 @@ public class DelimitedColumnEntityFormat implements EntityFormat {
             lineNo += 1;
 
             EntityBuilder builder = newEntityBuilder()
-                    .setId(lineNo);
+                    .setId(lineNo + baseId);
 
             // since ID is already set, a subsequent ID column will properly override
 
             for (TypedName column: fileColumns) {
                 String value = tokenizer.nextToken();
                 if (value != null && column != null) {
-                    builder.setAttribute(column, column.parseString(value));
+                    Object parsed;
+                    try {
+                         parsed = column.parseString(value);
+                    } catch (IllegalArgumentException e) {
+                        throw new DataAccessException("line " + lineNo + ": error parsing column " + column, e);
+                    }
+                    builder.setAttribute(column, parsed);
                 }
             }
 

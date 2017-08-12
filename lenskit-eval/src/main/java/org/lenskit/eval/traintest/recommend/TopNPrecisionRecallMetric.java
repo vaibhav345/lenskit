@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -26,6 +26,7 @@ import it.unimi.dsi.fastutil.longs.LongList;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import org.apache.commons.lang3.StringUtils;
 import org.lenskit.api.Recommender;
+import org.lenskit.api.RecommenderEngine;
 import org.lenskit.eval.traintest.AlgorithmInstance;
 import org.lenskit.eval.traintest.DataSet;
 import org.lenskit.eval.traintest.TestUser;
@@ -87,10 +88,10 @@ public class TopNPrecisionRecallMetric extends ListOnlyTopNMetric<TopNPrecisionR
 
     @Nonnull
     @Override
-    public MetricResult measureUser(TestUser user, int targetLength, LongList recs, Context context) {
+    public MetricResult measureUser(Recommender rec, TestUser user, int targetLength, LongList recs, Context context) {
         int tp = 0;
 
-        LongSet items = goodItems.selectItems(context.universe, context.recommender, user);
+        LongSet items = goodItems.selectItems(context.universe, rec, user);
 
         LongIterator iter = recs.iterator();
         while (iter.hasNext()) {
@@ -113,8 +114,8 @@ public class TopNPrecisionRecallMetric extends ListOnlyTopNMetric<TopNPrecisionR
 
     @Nullable
     @Override
-    public Context createContext(AlgorithmInstance algorithm, DataSet dataSet, org.lenskit.api.Recommender recommender) {
-        return new Context(dataSet.getAllItems(), recommender);
+    public Context createContext(AlgorithmInstance algorithm, DataSet dataSet, RecommenderEngine rec) {
+        return new Context(dataSet.getAllItems());
     }
 
     @Nonnull
@@ -149,17 +150,15 @@ public class TopNPrecisionRecallMetric extends ListOnlyTopNMetric<TopNPrecisionR
 
     public static class Context {
         final LongSet universe;
-        final Recommender recommender;
         double totalPrecision = 0;
         double totalRecall = 0;
         int nusers = 0;
 
-        public Context(LongSet items, Recommender recommender) {
+        public Context(LongSet items) {
             universe = items;
-            this.recommender = recommender;
         }
 
-        private void addUser(double prec, double rec) {
+        private synchronized void addUser(double prec, double rec) {
             totalPrecision += prec;
             totalRecall += rec;
             nusers += 1;

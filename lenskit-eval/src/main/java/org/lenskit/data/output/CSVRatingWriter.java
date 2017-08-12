@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -59,11 +59,7 @@ class CSVRatingWriter implements RatingWriter {
         List<Object> row = Lists.newArrayListWithCapacity(4);
         row.add(r.getUserId());
         row.add(r.getItemId());
-        if (r.hasValue()) {
-            row.add(r.getValue());
-        } else {
-            row.add(null);
-        }
+        row.add(r.getValue());
         if (includeTimestamps) {
             row.add(r.getTimestamp());
         }

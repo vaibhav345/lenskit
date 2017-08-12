@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -27,6 +27,7 @@ import it.unimi.dsi.fastutil.longs.LongIterators;
 import org.apache.commons.lang3.text.StrTokenizer;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultMap;
+import org.lenskit.inject.Shareable;
 import org.lenskit.results.Results;
 import org.lenskit.util.io.LineStream;
 import org.lenskit.util.io.ObjectStream;
@@ -46,6 +47,7 @@ import java.util.List;
  *
  * @since 3.0
  */
+@Shareable
 public class PrecomputedItemScorer extends AbstractItemScorer implements Serializable {
     private static final long serialVersionUID = 1L;
 

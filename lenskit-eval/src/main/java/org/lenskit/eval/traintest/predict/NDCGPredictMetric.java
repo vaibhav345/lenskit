@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -29,7 +29,7 @@ import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.longs.LongComparators;
 import org.apache.commons.lang3.StringUtils;
-import org.grouplens.lenskit.util.statistics.MeanAccumulator;
+import org.lenskit.api.RecommenderEngine;
 import org.lenskit.api.ResultMap;
 import org.lenskit.eval.traintest.AlgorithmInstance;
 import org.lenskit.eval.traintest.DataSet;
@@ -38,6 +38,7 @@ import org.lenskit.eval.traintest.metrics.Discount;
 import org.lenskit.eval.traintest.metrics.Discounts;
 import org.lenskit.eval.traintest.metrics.MetricResult;
 import org.lenskit.util.collections.LongUtils;
+import org.lenskit.util.math.MeanAccumulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,13 +104,14 @@ public class NDCGPredictMetric extends PredictMetric<MeanAccumulator> {
 
     @Nullable
     @Override
-    public MeanAccumulator createContext(AlgorithmInstance algorithm, DataSet dataSet, org.lenskit.api.Recommender recommender) {
+    public MeanAccumulator createContext(AlgorithmInstance algorithm, DataSet dataSet, RecommenderEngine engine) {
         return new MeanAccumulator();
     }
 
     @Nonnull
     @Override
     public MetricResult getAggregateMeasurements(MeanAccumulator context) {
+        logger.warn("Predict nDCG is deprecated, use nDCG in a rank context");
         return MetricResult.singleton(columnName, context.getMean());
     }
 
@@ -130,7 +132,9 @@ public class NDCGPredictMetric extends PredictMetric<MeanAccumulator> {
         double gain = computeDCG(actual, ratings);
         logger.debug("user {} has gain of {} (ideal {})", user.getUserId(), gain, idealGain);
         double score = gain / idealGain;
-        context.add(score);
+        synchronized (context) {
+            context.add(score);
+        }
         ImmutableMap.Builder<String,Double> results = ImmutableMap.builder();
         return MetricResult.fromMap(results.put(columnName, score)
                                            .put(columnName + ".Raw", gain)

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,6 +21,8 @@
 package org.lenskit.util.parallel;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +39,7 @@ public class TaskGroup extends RecursiveAction {
     private static final Logger logger = LoggerFactory.getLogger(TaskGroup.class);
 
     private boolean parallel;
+    private boolean continueAfterError = false;
     private Deque<ForkJoinTask<?>> tasks;
 
     /**
@@ -56,6 +59,14 @@ public class TaskGroup extends RecursiveAction {
         return parallel;
     }
 
+    public void setContinueAterError(boolean c) {
+        continueAfterError = c;
+    }
+
+    public boolean getContinueAfterError() {
+        return continueAfterError;
+    }
+
     /**
      * Add a task to be executed.
      * @param task The task to execute.
@@ -66,16 +77,60 @@ public class TaskGroup extends RecursiveAction {
     }
 
     @Override
-    protected void compute() {
+    public void compute() {
         if (parallel) {
             logger.debug("running {} tasks in parallel", tasks.size());
-            invokeAll(tasks);
+            if (continueAfterError) {
+                runAll();
+            } else {
+                invokeAll(tasks);
+            }
         } else {
             logger.debug("running {} tasks in sequence", tasks.size());
+            Throwable failure = null;
             while (!tasks.isEmpty()) {
                 ForkJoinTask<?> task = tasks.removeFirst();
-                task.invoke();
+                try {
+                    task.invoke();
+                } catch (Throwable th) {
+                    if (continueAfterError) {
+                        if (failure == null) {
+                            failure = th;
+                        } else {
+                            failure.addSuppressed(th);
+                        }
+                    } else {
+                        Throwables.throwIfUnchecked(th);
+                        throw new UncheckedExecutionException(th);
+                    }
+                }
             }
+            if (failure != null) {
+                Throwables.throwIfUnchecked(failure);
+                throw new UncheckedExecutionException(failure);
+            }
+        }
+    }
+
+    private void runAll() {
+        for (ForkJoinTask<?> task: tasks) {
+            task.fork();
+        }
+        Throwable failure = null;
+        for (ForkJoinTask<?> task: tasks) {
+            try {
+                task.join();
+            } catch (Throwable th) {
+                logger.error("job " + task + " failed with exception", th);
+                if (failure == null) {
+                    failure = th;
+                } else {
+                    failure.addSuppressed(th);
+                }
+            }
+        }
+        if (failure != null) {
+            throw new UncheckedExecutionException("Error running a subjob", failure);
         }
     }
 }

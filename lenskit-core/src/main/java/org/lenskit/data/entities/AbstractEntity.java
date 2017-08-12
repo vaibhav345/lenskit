@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -27,6 +27,8 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.lenskit.util.describe.Describable;
+import org.lenskit.util.describe.DescriptionWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -35,7 +37,7 @@ import java.util.*;
 /**
  * Base class to make it easier to implement entities.
  */
-public abstract class AbstractEntity implements Entity {
+public abstract class AbstractEntity implements Entity, Describable {
     protected final EntityType type;
     protected final long id;
 
@@ -45,6 +47,7 @@ public abstract class AbstractEntity implements Entity {
     }
 
     @Override
+    @EntityAttribute("id")
     public long getId() {
         return id;
     }
@@ -62,7 +65,7 @@ public abstract class AbstractEntity implements Entity {
     @Override
     public boolean hasAttribute(TypedName<?> name) {
         Object value = maybeGet(name.getName());
-        return value != null && name.getType().isInstance(value);
+        return value != null && name.getRawType().isInstance(value);
     }
 
     /**
@@ -176,7 +179,8 @@ public abstract class AbstractEntity implements Entity {
     @Override
     public <T> T maybeGet(TypedName<T> name) {
         try {
-            return name.getType().cast(maybeGet(name.getName()));
+            // FIXME This is not fully type-safe!
+            return (T) name.getRawType().cast(maybeGet(name.getName()));
         } catch (ClassCastException e) {
             throw new IllegalArgumentException(e);
         }
@@ -198,8 +202,10 @@ public abstract class AbstractEntity implements Entity {
     public int hashCode() {
         HashCodeBuilder hcb = new HashCodeBuilder();
         hcb.append(getType())
-           .append(getId())
-           .append(asMap());
+           .append(getId());
+        for (Attribute<?> av: getAttributes()) {
+            hcb.append(av.getName()).append(av.getValue());
+        }
         return hcb.toHashCode();
     }
 
@@ -211,6 +217,14 @@ public abstract class AbstractEntity implements Entity {
             tsb.append(av.getTypedName().toString(), av.getValue());
         }
         return tsb.toString();
+    }
+
+    @Override
+    public void describeTo(DescriptionWriter writer) {
+        writer.putField("type", getType());
+        for (Attribute<?> av: getAttributes()) {
+            writer.putField(av.getTypedName().toString(), av.getValue());
+        }
     }
 
     private class MapView extends AbstractMap<String,Object> {
@@ -267,7 +281,7 @@ public abstract class AbstractEntity implements Entity {
     private class EntrySet extends AbstractSet<Map.Entry<String,Object>> {
         @Override
         public Iterator<Map.Entry<String, Object>> iterator() {
-            return new EntryIter(getAttributeNames().iterator());
+            return new EntryIter(getTypedAttributeNames().iterator());
         }
 
         @Override
@@ -277,9 +291,9 @@ public abstract class AbstractEntity implements Entity {
     }
 
     private class EntryIter implements Iterator<Map.Entry<String,Object>> {
-        private final Iterator<String> baseIter;
+        private final Iterator<TypedName<?>> baseIter;
 
-        public EntryIter(Iterator<String> keyIter) {
+        public EntryIter(Iterator<TypedName<?>> keyIter) {
             baseIter = keyIter;
         }
 
@@ -290,8 +304,8 @@ public abstract class AbstractEntity implements Entity {
 
         @Override
         public Map.Entry<String, Object> next() {
-            String attr = baseIter.next();
-            return ImmutablePair.of(attr, get(attr));
+            TypedName<?> attr = baseIter.next();
+            return ImmutablePair.of(attr.getName(), get(attr));
         }
 
         @Override

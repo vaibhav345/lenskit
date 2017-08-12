@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,8 +20,6 @@
  */
 package org.lenskit.predict;
 
-import org.grouplens.lenskit.vectors.MutableSparseVector;
-import org.grouplens.lenskit.vectors.VectorEntry;
 import org.lenskit.api.ItemScorer;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultMap;
@@ -53,12 +51,6 @@ public class QuantizedRatingPredictor extends AbstractRatingPredictor {
                                     Quantizer q) {
         itemScorer = scorer;
         quantizer = q;
-    }
-
-    private void quantize(MutableSparseVector scores) {
-        for (VectorEntry e: scores) {
-            scores.set(e, quantizer.getIndexValue(quantizer.index(e.getValue())));
-        }
     }
 
     @Nonnull

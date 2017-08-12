@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,13 +20,10 @@
  */
 package org.lenskit.data.output;
 
-import org.lenskit.data.packed.BinaryFormatFlag;
-import org.lenskit.data.packed.BinaryRatingPacker;
 import org.lenskit.util.table.writer.CSVWriter;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.EnumSet;
 
 /**
  * @author <a href="http://www.grouplens.org">GroupLens Research</a>
@@ -55,25 +52,5 @@ public final class RatingWriters {
         CSVRatingWriter writer = new CSVRatingWriter(CSVWriter.open(file, null));
         writer.setIncludeTimestamps(ts);
         return writer;
-    }
-
-    /**
-     * Write ratings to a packed file.
-     * @param file The file to write to.
-     * @return The rating writer.
-     * @throws IOException if there is an error opening the file.
-     */
-    public static RatingWriter packed(File file, BinaryFormatFlag... flags) throws IOException {
-        return new PackedRatingWriter(BinaryRatingPacker.open(file, flags));
-    }
-
-    /**
-     * Write ratings to a packed file.
-     * @param file The file to write to.
-     * @return The rating writer.
-     * @throws IOException if there is an error opening the file.
-     */
-    public static RatingWriter packed(File file, EnumSet<BinaryFormatFlag> flags) throws IOException {
-        return new PackedRatingWriter(BinaryRatingPacker.open(file, flags));
     }
 }

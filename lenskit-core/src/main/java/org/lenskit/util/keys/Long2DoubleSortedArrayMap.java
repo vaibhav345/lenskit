@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -28,10 +28,13 @@ import it.unimi.dsi.fastutil.ints.AbstractIntComparator;
 import it.unimi.dsi.fastutil.ints.IntBidirectionalIterator;
 import it.unimi.dsi.fastutil.ints.IntIterators;
 import it.unimi.dsi.fastutil.longs.*;
-import it.unimi.dsi.fastutil.objects.*;
+import it.unimi.dsi.fastutil.objects.AbstractObjectSortedSet;
+import it.unimi.dsi.fastutil.objects.ObjectBidirectionalIterator;
+import it.unimi.dsi.fastutil.objects.ObjectSortedSet;
 import org.lenskit.util.collections.LongUtils;
+import org.lenskit.util.math.Scalars;
 
-import javax.annotation.concurrent.Immutable;
+import net.jcip.annotations.Immutable;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -45,6 +48,7 @@ import static it.unimi.dsi.fastutil.Arrays.quickSort;
 public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMap {
     private static final long serialVersionUID = 1L;
 
+
     private final SortedKeyIndex keys;
     private final double[] values;
 
@@ -55,6 +59,11 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         values = vs;
     }
 
+    /**
+     * Create a new map with existing data.
+     * @param data Use {@link #create(Map)} instead, as it can avoid copying maps that are already packed.
+     */
+    @Deprecated
     public Long2DoubleSortedArrayMap(Map<Long,Double> data) {
         Long2DoubleFunction vf = LongUtils.asLong2DoubleFunction(data);
         keys = SortedKeyIndex.fromCollection(data.keySet());
@@ -62,6 +71,23 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         values = new double[size];
         for (int i = 0; i < size; i++) {
             values[i] = vf.get(keys.getKey(i));
+        }
+    }
+
+    /**
+     * Create a new long-to-double sorted array map from another map.
+     *
+     * Using this method instead of the constructor allows copies of immutable vectors
+     * to be skipped.
+     *
+     * @param input The vector to copy.
+     * @return A new vector with the same data as {@code input}.
+     */
+    public static Long2DoubleSortedArrayMap create(Long2DoubleMap input) {
+        if (input instanceof Long2DoubleSortedArrayMap) {
+            return (Long2DoubleSortedArrayMap) input;
+        } else {
+            return new Long2DoubleSortedArrayMap(input);
         }
     }
 
@@ -76,10 +102,10 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
     }
 
     /**
-     * Create a new {@code MutableSparseVector} from unsorted key and value
+     * Create a new {@link Long2DoubleSortedArrayMap} from unsorted key and value
      * arrays. The provided arrays will be modified and should not be used
      * by the client after this operation has completed. The key domain of
-     * the new {@code MutableSparseVector} will be the same as {@code keys}.
+     * the new {@link Long2DoubleSortedArrayMap} will be the same as {@code keys}.
      *
      * @param keys Array of entry keys. This should be duplicate-free.
      * @param values The values of the vector, in key order.
@@ -131,13 +157,27 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         return wrap(index, nvs);
     }
 
+    /**
+     * Create a new sorted array map from input data.
+     * @param data The input data.
+     * @return The sorted array map.
+     */
+    @SuppressWarnings("deprecation")
+    public static Long2DoubleSortedArrayMap create(Map<Long,Double> data) {
+        if (data instanceof Long2DoubleSortedArrayMap) {
+            return (Long2DoubleSortedArrayMap) data;
+        } else {
+            return new Long2DoubleSortedArrayMap(data);
+        }
+    }
+
     @Override
     public FastSortedEntrySet long2DoubleEntrySet() {
         return new EntrySet();
     }
 
     @Override
-    public LongSortedSet keySet() {
+    public LongSortedArraySet keySet() {
         return keys.keySet();
     }
 
@@ -147,7 +187,7 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
      * @return The key at position {@code i}.
      */
     public long getKeyByIndex(int i) {
-        return keys.getKey(i);
+        return keys.getKey(i + keys.getLowerBound());
     }
 
     /**
@@ -156,7 +196,7 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
      * @return The value at position {@code i}.
      */
     public double getValueByIndex(int i) {
-        return values[i];
+        return values[i + keys.getLowerBound()];
     }
 
     @Override
@@ -164,15 +204,101 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         return null; // natural ordering
     }
 
-    private Long2DoubleSortedMap createSubMap(int lb, int ub) {
+    private Long2DoubleSortedArrayMap createSubMap(int lb, int ub) {
         return new Long2DoubleSortedArrayMap(keys.subIndex(lb, ub), values);
     }
 
     @Override
-    public Long2DoubleSortedMap subMap(long from, long to) {
+    public Long2DoubleSortedArrayMap subMap(long from, long to) {
         int startIdx = keys.findLowerBound(from); // include 'from'
         int endIdx = keys.findLowerBound(to); // lower bound so we don't include 'to'
         return createSubMap(startIdx, endIdx);
+    }
+
+    /**
+     * Return a subset of this map containing only the keys that appear in another set.
+     * @param toKeep The set of keys to keep.
+     * @return A copy of this map containing only those keys that appear in {@code keys}.
+     */
+    public Long2DoubleSortedArrayMap subMap(LongSet toKeep) {
+        if (toKeep == keySet()) {
+            return this;
+        }
+
+        if (toKeep instanceof LongSortedArraySet) {
+            return fastSubMap((LongSortedArraySet) toKeep);
+        } else {
+            return slowSubMap(toKeep);
+        }
+    }
+
+    private Long2DoubleSortedArrayMap slowSubMap(LongSet toKeep) {
+        LongSortedSet kept = LongUtils.setIntersect(keySet(), toKeep);
+        double[] nvs = new double[kept.size()];
+        int i = keys.getLowerBound();
+        int j = 0;
+        LongIterator iter = kept.iterator();
+        while (iter.hasNext()) {
+            long key = iter.nextLong();
+            while (keys.getKey(i) < key) {
+                i++;
+            }
+            nvs[j] = values[i];
+            j++;
+            i++;
+        }
+        return wrap(SortedKeyIndex.fromCollection(kept), nvs);
+    }
+
+    private Long2DoubleSortedArrayMap fastSubMap(LongSortedArraySet toKeep) {
+        SortedKeyIndex oks = toKeep.getIndex();
+        int tn = size();
+        int on = oks.size();
+        long[] nks = new long[Math.min(tn, on)];
+        double[] nvs = new double[Math.min(tn, on)];
+        int tlb = keys.getLowerBound();
+        int olb = oks.getLowerBound();
+        int ni = 0;
+
+        if (on * Scalars.log2(tn) < tn) {
+            for (int oi = 0; oi < on; oi++) {
+                long k = oks.getKey(oi + olb);
+                int ti = keys.tryGetIndex(k);
+                if (ti >= 0) {
+                    nks[ni] = k;
+                    nvs[ni] = values[ti];
+                    ni++;
+                }
+            }
+        } else {
+            int ti = 0, oi = 0;
+            int lti = -1, loi = -1;
+            long tk = 0, ok = 0;
+
+            while (ti < tn && oi < on) {
+                if (ti != lti) {
+                    tk = keys.getKey(tlb + ti);
+                    lti = ti;
+                }
+                if (oi != loi) {
+                    ok = oks.getKey(olb + oi);
+                    loi = oi;
+                }
+                if (tk == ok) {
+                    nks[ni] = tk;
+                    nvs[ni] = values[ti + tlb];
+                    ni++;
+                    ti++;
+                    oi++;
+                } else if (tk < ok) {
+                    ti++;
+                } else {
+                    oi++;
+                }
+            }
+        }
+
+        return wrap(SortedKeyIndex.wrap(nks, ni), nvs);
     }
 
     @Override
@@ -214,7 +340,7 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
 
     @Override
     public int size() {
-        return keySet().size();
+        return keys.size();
     }
 
     private Entry entry(int idx) {
@@ -238,7 +364,7 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         }
 
         @Override
-        public ObjectIterator<Entry> fastIterator() {
+        public ObjectBidirectionalIterator<Entry> fastIterator() {
             return new FastEntryIter();
         }
 
@@ -297,7 +423,7 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         }
     }
 
-    private class EntryIter extends AbstractObjectBidirectionalIterator<Entry> {
+    private class EntryIter implements ObjectBidirectionalIterator<Entry> {
         IntBidirectionalIterator iter;
 
         public EntryIter() {
@@ -332,7 +458,7 @@ public final class Long2DoubleSortedArrayMap extends AbstractLong2DoubleSortedMa
         }
     }
 
-    private class FastEntryIter extends AbstractObjectBidirectionalIterator<Entry> {
+    private class FastEntryIter implements ObjectBidirectionalIterator<Entry> {
         IntBidirectionalIterator iter = IntIterators.fromTo(keys.getLowerBound(), keys.getUpperBound());
         IndirectEntry entry = new IndirectEntry(0);
 

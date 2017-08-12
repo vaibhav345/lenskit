@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,9 +24,15 @@ import it.unimi.dsi.fastutil.doubles.DoubleIterator;
 import it.unimi.dsi.fastutil.longs.Long2DoubleFunction;
 import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import it.unimi.dsi.fastutil.objects.ObjectSet;
+import org.apache.commons.math3.exception.OutOfRangeException;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 import org.lenskit.util.keys.Long2DoubleSortedArrayMap;
+import org.lenskit.util.keys.SortedKeyIndex;
 
+import javax.annotation.Nonnull;
 import java.util.Iterator;
+import java.util.function.DoubleUnaryOperator;
 
 /**
  * Utility methods for vector arithmetic.
@@ -47,6 +53,15 @@ public final class Vectors {
         } else {
             return entries.iterator();
         }
+    }
+
+    public static Iterable<Long2DoubleMap.Entry> fastEntries(final Long2DoubleMap map) {
+        return new Iterable<Long2DoubleMap.Entry>() {
+            @Override
+            public Iterator<Long2DoubleMap.Entry> iterator() {
+                return fastEntryIterator(map);
+            }
+        };
     }
 
     /**
@@ -83,13 +98,32 @@ public final class Vectors {
      * @return The sum of the squares of the values of {@code v}.
      */
     public static double sumOfSquares(Long2DoubleMap v) {
-        double sum = 0;
-        DoubleIterator iter = v.values().iterator();
-        while (iter.hasNext()) {
-            double d = iter.nextDouble();
-            sum += d * d;
+        if (v instanceof Long2DoubleSortedArrayMap) {
+            return sumOfSquares((Long2DoubleSortedArrayMap) v);
+        } else {
+            double sum = 0;
+            DoubleIterator iter = v.values().iterator();
+            while (iter.hasNext()) {
+                double d = iter.nextDouble();
+                sum += d * d;
+            }
+            return sum;
         }
-        return sum;
+    }
+
+    /**
+     * Compute the sum of the squares of elements of a map (optimized).
+     * @param v The vector
+     * @return The sum of the squares of the values of {@code v}.
+     */
+    public static double sumOfSquares(Long2DoubleSortedArrayMap v) {
+        final int sz = v.size();
+        double ssq = 0;
+        for (int i = 0; i < sz; i++) {
+            double val = v.getValueByIndex(i);
+            ssq += val * val;
+        }
+        return ssq;
     }
 
     /**
@@ -99,6 +133,15 @@ public final class Vectors {
      */
     public static double euclideanNorm(Long2DoubleMap v) {
         return Math.sqrt(sumOfSquares(v));
+    }
+
+    /**
+     * Convert a vector to a unit vector.
+     * @param v The vector.
+     * @return A vector with Euclidean norm of 1.
+     */
+    public static Long2DoubleMap unitVector(Long2DoubleMap v) {
+        return multiplyScalar(v, 1.0 / euclideanNorm(v));
     }
 
     /**
@@ -114,30 +157,11 @@ public final class Vectors {
             return dotProduct(v2, v1);
         }
 
-        double result = 0;
-
         if (v1 instanceof Long2DoubleSortedArrayMap && v2 instanceof Long2DoubleSortedArrayMap) {
-            Long2DoubleSortedArrayMap sv1 = (Long2DoubleSortedArrayMap) v1;
-            Long2DoubleSortedArrayMap sv2 = (Long2DoubleSortedArrayMap) v2;
-
-            final int sz1 = v1.size();
-            final int sz2 = v2.size();
-
-            int i1 = 0, i2 = 0;
-            while (i1 < sz1 && i2 < sz2) {
-                final long k1 = sv1.getKeyByIndex(i1);
-                final long k2 = sv2.getKeyByIndex(i2);
-                if (k1 < k2) {
-                    i1++;
-                } else if (k2 < k1) {
-                    i2++;
-                } else {
-                    result += sv1.getValueByIndex(i1) * sv2.getValueByIndex(i2);
-                    i1++;
-                    i2++;
-                }
-            }
+            return dotProduct((Long2DoubleSortedArrayMap) v1, (Long2DoubleSortedArrayMap) v2);
         } else {
+            double result = 0;
+
             Long2DoubleFunction v2d = adaptDefaultValue(v2, 0.0);
             Iterator<Long2DoubleMap.Entry> iter = fastEntryIterator(v1);
             while (iter.hasNext()) {
@@ -145,8 +169,38 @@ public final class Vectors {
                 long k = e.getLongKey();
                 result += e.getDoubleValue() * v2d.get(k); // since default is 0
             }
-        }
 
+            return result;
+        }
+    }
+
+    /**
+     * Compute the dot product of two maps (optimized). This method assumes any value missing in one map is 0, so it is the dot
+     * product of the values of common keys.
+     * @param v1 The first vector.
+     * @param v2 The second vector.
+     * @return The sum of the products of corresponding values in the two vectors.
+     */
+    public static double dotProduct(Long2DoubleSortedArrayMap v1, Long2DoubleSortedArrayMap v2) {
+        double result;
+        result = 0;
+        final int sz1 = v1.size();
+        final int sz2 = v2.size();
+
+        int i1 = 0, i2 = 0;
+        while (i1 < sz1 && i2 < sz2) {
+            final long k1 = v1.getKeyByIndex(i1);
+            final long k2 = v2.getKeyByIndex(i2);
+            if (k1 < k2) {
+                i1++;
+            } else if (k2 < k1) {
+                i2++;
+            } else {
+                result += v1.getValueByIndex(i1) * v2.getValueByIndex(i2);
+                i1++;
+                i2++;
+            }
+        }
         return result;
     }
 
@@ -172,6 +226,113 @@ public final class Vectors {
      */
     public static double mean(Long2DoubleMap vec) {
         return sum(vec) / vec.size();
+    }
+
+    /**
+     * Add a vector to another (scaled) vector and a scalar.  The result is \\(x_i + s_y y_i + o\\).
+     *
+     * @param x The source vector.
+     * @param y The addition vector.  {@link Long2DoubleFunction#defaultReturnValue()} is assumed for missing values.
+     * @param sy The scale by which elements of {@code y} are multipled.
+     * @param o The offset to add.
+     * @return A vector with the same keys as {@code x}, transformed by the specified linear formula.
+     */
+    public static Long2DoubleMap combine(Long2DoubleMap x, Long2DoubleFunction y, double sy, double o) {
+        SortedKeyIndex idx = SortedKeyIndex.fromCollection(x.keySet());
+        final int n = idx.size();
+        double[] values = new double[n];
+
+        if (x instanceof Long2DoubleSortedArrayMap) {
+            // TODO make this fast for two sorted maps
+            Long2DoubleSortedArrayMap sx = (Long2DoubleSortedArrayMap) x;
+            assert idx == sx.keySet().getIndex();
+            for (int i = 0; i < n; i++) {
+                values[i] = sx.getValueByIndex(i) + y.get(idx.getKey(i)) * sy + o;
+            }
+        } else {
+            for (int i = 0; i < n; i++) {
+                long k = idx.getKey(i);
+                values[i] = x.get(k) + y.get(k) * sy + o;
+            }
+        }
+
+        return Long2DoubleSortedArrayMap.wrap(idx, values);
+    }
+
+    /**
+     * Add a scalar to each element of a vector.
+     * @param vec The vector to rescale.
+     * @param val The value to add.
+     * @return A new map with every value in {@code vec} increased by {@code val}.
+     */
+    public static Long2DoubleMap addScalar(Long2DoubleMap vec, double val) {
+        SortedKeyIndex keys = SortedKeyIndex.fromCollection(vec.keySet());
+        final int n = keys.size();
+        double[] values = new double[n];
+        if (vec instanceof Long2DoubleSortedArrayMap) {
+            Long2DoubleSortedArrayMap sorted = (Long2DoubleSortedArrayMap) vec;
+            for (int i = 0; i < n; i++) {
+                assert sorted.getKeyByIndex(i) == keys.getKey(i);
+                values[i] = sorted.getValueByIndex(i) + val;
+            }
+        } else {
+            for (int i = 0; i < n; i++) {
+                values[i] = vec.get(keys.getKey(i)) + val;
+            }
+        }
+
+        return Long2DoubleSortedArrayMap.wrap(keys, values);
+    }
+
+    /**
+     * Multiply each element of a vector by a scalar.
+     * @param vector The vector.
+     * @param value The scalar to multiply.
+     * @return A new vector consisting of the same keys as `vector`, with `value` multipled by each.
+     */
+    @Nonnull
+    public static Long2DoubleMap multiplyScalar(Long2DoubleMap vector, double value) {
+        // TODO Consier implementing this in terms of transform
+        SortedKeyIndex idx = SortedKeyIndex.fromCollection(vector.keySet());
+        int n = idx.size();
+        double[] values = new double[n];
+        for (int i = 0; i < n; i++) {
+            values[i] = vector.get(idx.getKey(i)) * value;
+        }
+
+        return Long2DoubleSortedArrayMap.wrap(idx, values);
+    }
+
+    /**
+     * Transform the values of a vector.
+     *
+     * @param input The vector to transform.
+     * @param function The transformation to apply.
+     * @return A new vector that is the result of applying `function` to each value in `input`.
+     */
+    public static Long2DoubleMap transform(Long2DoubleMap input, DoubleUnaryOperator function) {
+        // FIXME Improve performance when input is also sorted
+        SortedKeyIndex idx = SortedKeyIndex.fromCollection(input.keySet());
+        int n = idx.size();
+        double[] values = new double[n];
+        for (int i = 0; i < n; i++) {
+            values[i] = function.applyAsDouble(input.get(idx.getKey(i)));
+        }
+
+        return Long2DoubleSortedArrayMap.wrap(idx, values);
+    }
+
+    /**
+     * Create a flyweight row view of a matrix.
+     * @param mat The matrix.
+     * @param row The row number.
+     * @return A vector that is a read-only flyweight view of the matrix row.
+     */
+    public static RealVector matrixRow(RealMatrix mat, int row) {
+        if (row < 0 || row >= mat.getRowDimension()) {
+            throw new OutOfRangeException(row, 0, mat.getRowDimension());
+        }
+        return new RowView(mat, row);
     }
 
     private static class DftAdaptingL2DFunction implements Long2DoubleFunction {

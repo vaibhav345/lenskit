@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -23,36 +23,55 @@ package org.lenskit.basic;
 import it.unimi.dsi.fastutil.longs.*;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultMap;
-import org.lenskit.data.ratings.RatingSummary;
+import org.lenskit.data.ratings.InteractionStatistics;
 import org.lenskit.inject.Shareable;
 import org.lenskit.results.Results;
 import org.lenskit.util.collections.LongUtils;
+import org.lenskit.util.keys.Long2DoubleSortedArrayMap;
+import org.lenskit.util.keys.SortedKeyIndex;
 
 import javax.annotation.Nonnull;
 import javax.inject.Inject;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Item scorer scores items based on their popularity rank.  1 is the most popular item, and 0 is an unknown item.
  */
 @Shareable
-public class PopularityRankItemScorer extends AbstractItemScorer {
-    private final RatingSummary summary;
-    private final Long2IntMap ranks;
+public class PopularityRankItemScorer extends AbstractItemScorer implements Serializable {
+    private static final long serialVersionUID = 2L;
+
+    private final InteractionStatistics statistics;
+    private final Long2DoubleSortedArrayMap rankScores;
 
     @Inject
-    PopularityRankItemScorer(RatingSummary rs) {
-        summary = rs;
-        long[] items = rs.getItems().toLongArray();
+    public PopularityRankItemScorer(final InteractionStatistics stats) {
+        statistics = stats;
+        long[] items = stats.getKnownItems().toLongArray();
         LongArrays.quickSort(items, new AbstractLongComparator() {
             @Override
             public int compare(long l1, long l2) {
-                return Integer.compare(summary.getItemRatingCount(l2), summary.getItemRatingCount(l1));
+                return Integer.compare(stats.getInteractionCount(l2), stats.getInteractionCount(l1));
             }
         });
-        ranks = LongUtils.itemRanks(LongArrayList.wrap(items));
+        Long2IntMap ranks = LongUtils.itemRanks(LongArrayList.wrap(items));
+        SortedKeyIndex keys = SortedKeyIndex.fromCollection(ranks.keySet());
+        int n = keys.size();
+        double[] values = new double[n];
+        for (int i = 0; i < n; i++) {
+            values[i] = 1.0 - ranks.get(keys.getKey(i)) / ((double) n);
+        }
+        rankScores = Long2DoubleSortedArrayMap.wrap(keys, values);
+    }
+
+    @Nonnull
+    @Override
+    public Map<Long, Double> score(long user, @Nonnull Collection<Long> items) {
+        return rankScores.subMap(LongUtils.asLongSet(items));
     }
 
     @Nonnull
@@ -62,17 +81,8 @@ public class PopularityRankItemScorer extends AbstractItemScorer {
         LongIterator iter = LongIterators.asLongIterator(items.iterator());
         while (iter.hasNext()) {
             long item = iter.nextLong();
-            int rank = ranks.get(item);
-            results.add(Results.create(item, rankToScore(rank, ranks.size())));
+            results.add(Results.create(item, rankScores.get(item)));
         }
         return Results.newResultMap(results);
-    }
-
-    static double rankToScore(int rank, int n) {
-        if (rank < 0) {
-            return 0;
-        } else {
-            return 1.0 - rank / ((double) n);
-        }
     }
 }

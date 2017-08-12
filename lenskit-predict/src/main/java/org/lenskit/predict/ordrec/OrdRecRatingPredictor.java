@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,30 +20,24 @@
  */
 package org.lenskit.predict.ordrec;
 
-import it.unimi.dsi.fastutil.longs.LongIterator;
-import it.unimi.dsi.fastutil.longs.LongIterators;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.*;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.RealVector;
 import org.grouplens.lenskit.iterative.IterationCount;
 import org.grouplens.lenskit.iterative.LearningRate;
 import org.grouplens.lenskit.iterative.RegularizationTerm;
-import org.grouplens.lenskit.vectors.ImmutableSparseVector;
-import org.grouplens.lenskit.vectors.MutableSparseVector;
-import org.grouplens.lenskit.vectors.SparseVector;
-import org.grouplens.lenskit.vectors.VectorEntry;
 import org.lenskit.api.ItemScorer;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultMap;
 import org.lenskit.basic.AbstractRatingPredictor;
-import org.lenskit.data.dao.UserEventDAO;
-import org.lenskit.data.history.UserHistory;
+import org.lenskit.data.dao.DataAccessObject;
+import org.lenskit.data.entities.CommonAttributes;
 import org.lenskit.data.ratings.Rating;
 import org.lenskit.data.ratings.Ratings;
 import org.lenskit.results.AbstractResult;
 import org.lenskit.results.Results;
 import org.lenskit.transform.quantize.Quantizer;
+import org.lenskit.util.math.Vectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +63,7 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
     private static final Logger logger = LoggerFactory.getLogger(OrdRecRatingPredictor.class);
 
     private ItemScorer itemScorer;
-    private UserEventDAO userEventDao;
+    private DataAccessObject dao;
     private Quantizer quantizer;
     private final double learningRate;
     private final double regTerm;
@@ -85,11 +79,11 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
      * @param reg Regularization term for user profile training.
      */
     @Inject
-    public OrdRecRatingPredictor(ItemScorer scorer, UserEventDAO dao, Quantizer quantizer,
+    public OrdRecRatingPredictor(ItemScorer scorer, DataAccessObject dao, Quantizer quantizer,
                                  @LearningRate double rate,
                                  @RegularizationTerm double reg,
                                  @IterationCount int niters) {
-        this.userEventDao = dao;
+        this.dao = dao;
         this.itemScorer = scorer;
         this.quantizer = quantizer;
         this.learningRate = rate;
@@ -103,8 +97,8 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
      * @param dao The user event DAO.
      * @param q The quantizer.
      */
-    OrdRecRatingPredictor(ItemScorer scorer, UserEventDAO dao, Quantizer q) {
-        this.userEventDao = dao;
+    OrdRecRatingPredictor(ItemScorer scorer, DataAccessObject dao, Quantizer q) {
+        this.dao = dao;
         this.itemScorer = scorer;
         this.quantizer = q;
         this.learningRate = 1e-3;
@@ -113,18 +107,19 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
     }
 
     /**
-     * It is used to generate rating list from UserEventDAO.
+     * Extract a user vector from a data source.
      *
      * @param uid The user ID.
-     * @param dao The UserEventDAO.
-     *
-     * @return The VectorEntry list of rating.
+     * @param dao The DAO.
+     * @return The user rating vector.
      */
-    private SparseVector makeUserVector(long uid, UserEventDAO dao) {
-        UserHistory<Rating> history = dao.getEventsForUser(uid, Rating.class);
-        SparseVector vector = null;
-        if (history != null) {
-            vector = ImmutableSparseVector.create(Ratings.userRatingVector(history));
+    private Long2DoubleMap makeUserVector(long uid, DataAccessObject dao) {
+        List<Rating> history = dao.query(Rating.class)
+                                  .withAttribute(CommonAttributes.USER_ID, uid)
+                                  .get();
+        Long2DoubleMap vector = null;
+        if (!history.isEmpty()) {
+            vector = Ratings.userRatingVector(history);
         }
 
         return vector;
@@ -154,16 +149,16 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
      * The train function of OrdRec. Get all parameters after learning process.
      */
     @SuppressWarnings("ConstantConditions")
-    private void trainModel(OrdRecModel model, SparseVector ratings, MutableSparseVector scores) {
+    private void trainModel(OrdRecModel model, Long2DoubleMap ratings, Map<Long, Double> scores) {
         RealVector beta = model.getBeta();
         RealVector deltaBeta = new ArrayRealVector(beta.getDimension());
         double dt1;
         // n is the number of iteration;
         for (int j = 0; j < iterationCount; j++ ) {
-            for (VectorEntry rating: ratings) {
-                long iid = rating.getKey();
+            for (Long2DoubleMap.Entry rating: Vectors.fastEntries(ratings)) {
+                long iid = rating.getLongKey();
                 double score = scores.get(iid);
-                int r = quantizer.index(rating.getValue());
+                int r = quantizer.index(rating.getDoubleValue());
 
                 double probEqualR = model.getProbEQ(score, r);
                 double probLessR = model.getProbLE(score, r);
@@ -206,7 +201,7 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
     @Nonnull
     private ResultMap computePredictions(long user, @Nonnull Collection<Long> items, boolean includeDetails) {
         logger.debug("predicting {} items for {}", items.size(), user);
-        SparseVector ratings = makeUserVector(user, userEventDao);
+        Long2DoubleMap ratings = makeUserVector(user, dao);
         LongSet allItems = new LongOpenHashSet(ratings.keySet());
         allItems.addAll(items);
 
@@ -218,10 +213,9 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
         } else {
             scores = itemScorer.score(user, allItems);
         }
-        MutableSparseVector scoreVector = MutableSparseVector.create(scores);
 
         OrdRecModel params = new OrdRecModel(quantizer);
-        trainModel(params, ratings, scoreVector);
+        trainModel(params, ratings, scores);
         logger.debug("trained parameters for {}: {}", user, params);
 
         RealVector probabilities = new ArrayRealVector(params.getLevelCount());
@@ -231,8 +225,8 @@ public class OrdRecRatingPredictor extends AbstractRatingPredictor {
         LongIterator iter = LongIterators.asLongIterator(items.iterator());
         while (iter.hasNext()) {
             final long item = iter.nextLong();
-            double score = scoreVector.get(item, Double.NaN);
-            if (Double.isNaN(score)) {
+            Double score = scores.get(item);
+            if (score == null) {
                 continue;
             }
             params.getProbDistribution(score, probabilities);

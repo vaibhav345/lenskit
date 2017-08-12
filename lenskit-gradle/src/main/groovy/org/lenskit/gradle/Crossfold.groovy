@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,7 +24,6 @@ import groovy.json.JsonOutput
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
-
 import org.lenskit.gradle.traits.DataSources
 
 /**
@@ -180,14 +179,16 @@ class Crossfold extends LenskitTask implements DataSources, DataSetProvider {
      * Set the method to use. Can be one of:
      * <ul>
      *     <li>partition-users</li>
-     *     <li>partition-entities</li>
      *     <li>sample-users</li>
+     *     <li>partition-items</li>
+     *     <li>sample-items</li>
+     *     <li>partition-entities</li>
      * </ul>
      * @param m The method
      */
     public void method(String m) {
         // accept partition-ratings for backwards compatibility
-        if (!(m =~ /^(?i:partition[_-](users|ratings|entities)|sample[_-]users)$/)) {
+        if (!(m =~ /^(?i:partition[_-](users|ratings|entities|items)|sample[_-](users|items))$/)) {
             throw new IllegalArgumentException("invalid partition method " + m)
         }
         method = m.replaceAll('_', '-').toLowerCase()

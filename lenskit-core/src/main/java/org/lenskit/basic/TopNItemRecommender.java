@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -21,26 +21,25 @@
 package org.lenskit.basic;
 
 
-import com.google.common.collect.Ordering;
-import it.unimi.dsi.fastutil.longs.*;
-import org.lenskit.util.ScoredIdAccumulator;
-import org.lenskit.util.TopNScoredIdAccumulator;
-import org.lenskit.util.UnlimitedScoredIdAccumulator;
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import org.lenskit.api.ItemScorer;
 import org.lenskit.api.Result;
 import org.lenskit.api.ResultList;
 import org.lenskit.api.ResultMap;
-import org.lenskit.data.dao.ItemDAO;
-import org.lenskit.data.dao.UserEventDAO;
-import org.lenskit.data.events.Event;
-import org.lenskit.data.history.UserHistory;
-import org.lenskit.results.Results;
+import org.lenskit.data.dao.DataAccessObject;
+import org.lenskit.data.entities.CommonAttributes;
+import org.lenskit.data.entities.CommonTypes;
+import org.lenskit.results.ResultAccumulator;
+import org.lenskit.util.collections.Long2DoubleAccumulator;
 import org.lenskit.util.collections.LongUtils;
+import org.lenskit.util.collections.TopNLong2DoubleAccumulator;
+import org.lenskit.util.collections.UnlimitedLong2DoubleAccumulator;
+import org.lenskit.util.math.Vectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.util.Collection;
 import java.util.List;
@@ -58,14 +57,12 @@ import java.util.Map;
  */
 public class TopNItemRecommender extends AbstractItemRecommender {
     private static final Logger logger = LoggerFactory.getLogger(TopNItemRecommender.class);
-    protected final UserEventDAO userEventDAO;
-    protected final ItemDAO itemDAO;
+    protected final DataAccessObject dao;
     protected final ItemScorer scorer;
 
     @Inject
-    public TopNItemRecommender(UserEventDAO uedao, ItemDAO idao, ItemScorer scorer) {
-        userEventDAO = uedao;
-        itemDAO = idao;
+    public TopNItemRecommender(DataAccessObject data, ItemScorer scorer) {
+        dao = data;
         this.scorer = scorer;
     }
     
@@ -85,20 +82,19 @@ public class TopNItemRecommender extends AbstractItemRecommender {
                      n, user, candidates.size());
 
         Map<Long, Double> scores = scorer.score(user, candidates);
-        ScoredIdAccumulator accum;
+        Long2DoubleAccumulator accum;
         if (n >= 0) {
-            accum = new TopNScoredIdAccumulator(n);
+            accum = new TopNLong2DoubleAccumulator(n);
         } else {
-            accum = new UnlimitedScoredIdAccumulator();
+            accum = new UnlimitedLong2DoubleAccumulator();
         }
 
-        Long2DoubleFunction map = LongUtils.asLong2DoubleFunction(scores);
+        Long2DoubleMap map = LongUtils.asLong2DoubleMap(scores);
 
-        LongIterator iter = LongIterators.asLongIterator(scores.keySet().iterator());
-        while (iter.hasNext()) {
-            long item = iter.nextLong();
-            accum.put(item, map.get(item));
+        for (Long2DoubleMap.Entry e: Vectors.fastEntries(map)) {
+            accum.put(e.getLongKey(), e.getDoubleValue());
         }
+
         return accum.finishList();
     }
 
@@ -135,14 +131,11 @@ public class TopNItemRecommender extends AbstractItemRecommender {
 
     @Nonnull
     private ResultList getTopNResults(int n, Iterable<Result> scores) {
-        Ordering<Result> ord = Results.scoreOrder();
-        List<Result> topN;
-        if (n < 0) {
-            topN = ord.reverse().immutableSortedCopy(scores);
-        } else {
-            topN = ord.greatestOf(scores, n);
+        ResultAccumulator accum = ResultAccumulator.create(n);
+        for (Result r: scores) {
+            accum.add(r);
         }
-        return Results.newResultList(topN);
+        return accum.finish();
     }
 
     /**
@@ -153,22 +146,10 @@ public class TopNItemRecommender extends AbstractItemRecommender {
      * @return The set of items to exclude.
      */
     protected LongSet getDefaultExcludes(long user) {
-        return getDefaultExcludes(userEventDAO.getEventsForUser(user));
-    }
-
-    /**
-     * Get the default exclude set for a user.  The base implementation returns
-     * all the items they have interacted with (from {@link UserHistory#itemSet()}).
-     *
-     * @param user The user history.
-     * @return The set of items to exclude.
-     */
-    protected LongSet getDefaultExcludes(@Nullable UserHistory<? extends Event> user) {
-        if (user == null) {
-            return LongSets.EMPTY_SET;
-        } else {
-            return user.itemSet();
-        }
+        // FIXME Support things other than ratings
+        return dao.query(CommonTypes.RATING)
+                  .withAttribute(CommonAttributes.USER_ID, user)
+                  .valueSet(CommonAttributes.ITEM_ID);
     }
 
     /**
@@ -180,6 +161,6 @@ public class TopNItemRecommender extends AbstractItemRecommender {
      * @return All items for which predictions can be generated for the user.
      */
     protected LongSet getPredictableItems(long user) {
-        return itemDAO.getItemIds();
+        return dao.getEntityIds(CommonTypes.ITEM);
     }
 }

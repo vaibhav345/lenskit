@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -47,6 +47,7 @@ public abstract class CrossfoldTestSuite extends ML100KTestSuite {
     @Test
     public void testAlgorithmAccuracy() throws IOException {
         SimpleEvaluator evalCommand = new SimpleEvaluator();
+        evalCommand.getExperiment().setThreadCount(4);
         evalCommand.setWorkDir(workDir.newFolder("data").toPath());
         AlgorithmInstanceBuilder algo = new AlgorithmInstanceBuilder();
         configureAlgorithm(algo.getConfig());

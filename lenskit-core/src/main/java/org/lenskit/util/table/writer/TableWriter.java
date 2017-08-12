@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -26,7 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
-import javax.annotation.concurrent.ThreadSafe;
+import net.jcip.annotations.ThreadSafe;
 
 /**
  * Write rows to a table.
@@ -69,6 +69,12 @@ public interface TableWriter extends Closeable {
      * @since 1.1
      */
     void writeRow(List<?> row) throws IOException;
+
+    /**
+     * Flush the writer, causing all currently-written rows to be flushed to output.
+     * @throws IOException if an error occurs while flushing output.
+     */
+    void flush() throws IOException;
 
     /**
      * Finish the table.  Depending on how it was constructed, some underlying

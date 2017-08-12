@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -33,7 +33,7 @@ import static org.junit.Assert.assertThat
 
 class TopNNDCGMetricTest {
     @Test
-    public void testConfigure() {
+    void testConfigure() {
         def jsb = new JsonBuilder()
         jsb {
             type 'ndcg'
@@ -47,7 +47,7 @@ class TopNNDCGMetricTest {
     }
 
     @Test
-    public void testSameOrder() {
+    void testSameOrder() {
         def metric = new TopNNDCGMetric()
         def context = metric.createContext(null, null, null)
         def user = TestUser.newBuilder()
@@ -56,21 +56,21 @@ class TopNNDCGMetricTest {
                            .build()
         def recs = Results.newResultList(Results.create(1, 3.0),
                                          Results.create(2, 2.5))
-        def result = metric.measureUser(user, -1, recs, context)
+        def result = metric.measureUser(null, user, -1, recs, context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(1.0d, 1.0e-6d))
 
         result = metric.getAggregateMeasurements(context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(1.0d, 1.0e-6d))
     }
 
     @Test
-    public void testIgnoresScores() {
+    void testIgnoresScores() {
         def metric = new TopNNDCGMetric()
         def context = metric.createContext(null, null, null)
         def user = TestUser.newBuilder()
@@ -81,23 +81,23 @@ class TopNNDCGMetricTest {
         // this is fine, nDCG should only consider order.
         def recs = Results.newResultList(Results.create(1, 1.0),
                                          Results.create(2, 2.5))
-        def result = metric.measureUser(user, -1, recs, context)
+        def result = metric.measureUser(null, user, -1, recs, context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(1.0d, 1.0e-6d))
 
         result = metric.getAggregateMeasurements(context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(1.0d, 1.0e-6d))
     }
 
     @Test
-    public void testOutOfOrder() {
+    void testOutOfOrder() {
         // use half-life discounting, because log 2 doesn't change for 2 items
-        def metric = new TopNNDCGMetric(Discounts.exp(2));
+        def metric = new TopNNDCGMetric(Discounts.exp(2))
         def context = metric.createContext(null, null, null)
         def user = TestUser.newBuilder()
                            .addTestRating(1, 5.0)
@@ -107,23 +107,23 @@ class TopNNDCGMetricTest {
         // this is fine, nDCG should only consider order.
         def recs = Results.newResultList(Results.create(2, 3.0),
                                          Results.create(1, 2.5))
-        def result = metric.measureUser(user, -1, recs, context)
+        def result = metric.measureUser(null, user, -1, recs, context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(5 / 6.25d, 1.0e-6d))
 
         result = metric.getAggregateMeasurements(context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(5 / 6.25d, 1.0e-6d))
     }
 
     @Test
-    public void testTooManyRatings() {
+    void testTooManyRatings() {
         // test that we only consider first `n` test ratings if target rec list is shorter
-        def metric = new TopNNDCGMetric(Discounts.exp(2));
+        def metric = new TopNNDCGMetric(Discounts.exp(2))
         def context = metric.createContext(null, null, null)
         def user = TestUser.newBuilder()
                            .addTestRating(1, 1.0)
@@ -134,23 +134,23 @@ class TopNNDCGMetricTest {
         // this is fine, nDCG should only consider order.
         def recs = Results.newResultList(Results.create(2, 3.0),
                                          Results.create(3, 2.5))
-        def result = metric.measureUser(user, 2, recs, context)
+        def result = metric.measureUser(null, user, 2, recs, context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
+        assertThat(result.values.keySet(), contains('nDCG'))
         // should be 1 because only the first 2 test ratings are considered
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values['nDCG'],
                    closeTo(1, 1.0e-6d))
 
         result = metric.getAggregateMeasurements(context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo(1, 1.0e-6d))
     }
 
     @Test
-    public void testAggregate() {
-        def metric = new TopNNDCGMetric(Discounts.exp(2));
+    void testAggregate() {
+        def metric = new TopNNDCGMetric(Discounts.exp(2))
         def context = metric.createContext(null, null, null)
         def user = TestUser.newBuilder()
                            .addTestRating(1, 5.0)
@@ -158,7 +158,7 @@ class TopNNDCGMetricTest {
                            .build()
         def recs = Results.newResultList(Results.create(1, 3.0),
                                          Results.create(2, 2.5))
-        metric.measureUser(user, -1, recs, context)
+        metric.measureUser(null, user, -1, recs, context)
 
         user = TestUser.newBuilder()
                        .addTestRating(1, 5.0)
@@ -167,12 +167,12 @@ class TopNNDCGMetricTest {
 
         recs = Results.newResultList(Results.create(2, 3.0),
                                          Results.create(1, 2.5))
-        metric.measureUser(user, -1, recs, context)
+        metric.measureUser(null, user, -1, recs, context)
 
         def result = metric.getAggregateMeasurements(context)
         assertThat(result, notNullValue())
-        assertThat(result.values.keySet(), contains('TopN.nDCG'))
-        assertThat(result.values['TopN.nDCG'],
+        assertThat(result.values.keySet(), contains('nDCG'))
+        assertThat(result.values['nDCG'],
                    closeTo((1 + 5/6.25d) * 0.5, 1.0e-6d))
     }
 }

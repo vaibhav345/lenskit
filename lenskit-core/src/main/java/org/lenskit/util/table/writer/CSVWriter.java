@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -20,24 +20,22 @@
  */
 package org.lenskit.util.table.writer;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
+import com.google.common.io.Files;
+import org.lenskit.util.io.CompressionMode;
+import org.lenskit.util.io.LKFileUtils;
+import org.lenskit.util.table.TableLayout;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.WillCloseWhenClosed;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.List;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
-import com.google.common.io.Closeables;
-import org.grouplens.lenskit.util.io.CompressionMode;
-import org.grouplens.lenskit.util.io.LKFileUtils;
-
-import com.google.common.io.Files;
-import org.lenskit.util.table.TableLayout;
 
 import static org.apache.commons.lang3.StringEscapeUtils.escapeCsv;
 
@@ -57,8 +55,9 @@ public class CSVWriter extends AbstractTableWriter {
      * @param l The table layout, or {@code null} if the table has no headers.
      * @throws IOException if there is an error writing the column headers.
      */
-    public CSVWriter(@Nonnull Writer w, @Nullable TableLayout l) throws IOException {
-        Preconditions.checkNotNull(w, "writer must not be null");
+    public CSVWriter(@WillCloseWhenClosed @Nonnull Writer w, @Nullable TableLayout l) throws IOException {
+        Preconditions.checkNotNull(w, "writer");
+
         layout = l;
         if (w instanceof BufferedWriter) {
             writer = (BufferedWriter) w;
@@ -71,7 +70,12 @@ public class CSVWriter extends AbstractTableWriter {
     }
 
     @Override
-    public void close() throws IOException {
+    public synchronized void flush() throws IOException {
+        writer.flush();
+    }
+
+    @Override
+    public synchronized void close() throws IOException {
         if (writer != null) {
             writer.close();
             writer = null;
@@ -96,7 +100,6 @@ public class CSVWriter extends AbstractTableWriter {
             }
         }
         writer.newLine();
-        writer.flush();
     }
 
     @Override
@@ -118,10 +121,14 @@ public class CSVWriter extends AbstractTableWriter {
         Writer writer = LKFileUtils.openOutput(file, Charset.defaultCharset(), compression);
         try {
             return new CSVWriter(writer, layout);
-        } catch (Exception ex) {
-            Closeables.close(writer, true);
-            Throwables.propagateIfInstanceOf(ex, IOException.class);
-            throw Throwables.propagate(ex);
+        } catch (Throwable th) {
+            try {
+                writer.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            Throwables.propagateIfInstanceOf(th, IOException.class);
+            throw Throwables.propagate(th);
         }
     }
 

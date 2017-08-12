@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -60,18 +60,6 @@ public class LenskitPlugin implements Plugin<Project> {
                     val = StringConvert.INSTANCE.convertFromString(prop.type, val)
                 }
                 prop.setProperty(lenskit, val)
-            }
-        }
-        addLenskitConfiguration(project, lenskit)
-    }
-
-    void addLenskitConfiguration(Project project, LenskitExtension lenskit) {
-        def cfg = project.configurations.create('lenskit')
-        // got this trick from JacocoPlugin - if there are no dependencies, make some
-        cfg.incoming.beforeResolve {
-            if (cfg.dependencies.isEmpty()) {
-                logger.info 'Adding LensKit CLI dependency for version {}', lenskit.version
-                cfg.dependencies.add(project.dependencies.create("org.grouplens.lenskit:lenskit-cli:$lenskit.version"))
             }
         }
     }

@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -22,7 +22,7 @@ package org.lenskit.data.entities;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
+import net.jcip.annotations.Immutable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -91,7 +91,6 @@ public interface Entity {
      *
      * @param name The attribute name to look for.
      * @return `true` if the entity contains `attribute` and the value is of the associated type.
-     * that the data is of a compatible type.
      */
     boolean hasAttribute(TypedName<?> name);
 

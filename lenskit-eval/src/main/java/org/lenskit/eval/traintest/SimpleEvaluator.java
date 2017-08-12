@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -30,6 +30,8 @@ import org.lenskit.eval.traintest.predict.PredictEvalTask;
 import org.lenskit.eval.traintest.predict.PredictMetric;
 import org.lenskit.util.table.Table;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -254,7 +256,11 @@ public class SimpleEvaluator {
      */
     public Table execute() {
         for (Crossfolder cf: crossfolders) {
-            cf.execute();
+            try {
+                cf.execute();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             experiment.addDataSets(cf.getDataSets());
         }
         return experiment.execute();

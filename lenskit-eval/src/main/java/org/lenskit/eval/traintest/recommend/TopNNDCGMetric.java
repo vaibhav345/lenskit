@@ -1,6 +1,6 @@
 /*
  * LensKit, an open source recommender systems toolkit.
- * Copyright 2010-2014 LensKit Contributors.  See CONTRIBUTORS.md.
+ * Copyright 2010-2016 LensKit Contributors.  See CONTRIBUTORS.md.
  * Work on LensKit has been funded by the National Science Foundation under
  * grants IIS 05-34939, 08-08692, 08-12148, and 10-17697.
  *
@@ -24,8 +24,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import it.unimi.dsi.fastutil.longs.*;
 import org.apache.commons.lang3.StringUtils;
-import org.grouplens.lenskit.util.statistics.MeanAccumulator;
 import org.lenskit.api.Recommender;
+import org.lenskit.api.RecommenderEngine;
 import org.lenskit.eval.traintest.AlgorithmInstance;
 import org.lenskit.eval.traintest.DataSet;
 import org.lenskit.eval.traintest.TestUser;
@@ -33,6 +33,7 @@ import org.lenskit.eval.traintest.metrics.Discount;
 import org.lenskit.eval.traintest.metrics.Discounts;
 import org.lenskit.eval.traintest.metrics.MetricResult;
 import org.lenskit.util.collections.LongUtils;
+import org.lenskit.util.math.MeanAccumulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +49,7 @@ import java.util.Collections;
  */
 public class TopNNDCGMetric extends ListOnlyTopNMetric<MeanAccumulator> {
     private static final Logger logger = LoggerFactory.getLogger(TopNNDCGMetric.class);
-    public static final String DEFAULT_COLUMN = "TopN.nDCG";
+    public static final String DEFAULT_COLUMN = "nDCG";
     private final String columnName;
     private final Discount discount;
 
@@ -90,7 +91,7 @@ public class TopNNDCGMetric extends ListOnlyTopNMetric<MeanAccumulator> {
 
     @Nullable
     @Override
-    public MeanAccumulator createContext(AlgorithmInstance algorithm, DataSet dataSet, Recommender recommender) {
+    public MeanAccumulator createContext(AlgorithmInstance algorithm, DataSet dataSet, RecommenderEngine engine) {
         return new MeanAccumulator();
     }
 
@@ -102,7 +103,7 @@ public class TopNNDCGMetric extends ListOnlyTopNMetric<MeanAccumulator> {
 
     @Nonnull
     @Override
-    public MetricResult measureUser(TestUser user, int targetLength, LongList recommendations, MeanAccumulator context) {
+    public MetricResult measureUser(Recommender rec, TestUser user, int targetLength, LongList recommendations, MeanAccumulator context) {
         if (recommendations == null) {
             return MetricResult.empty();
         }
@@ -120,7 +121,9 @@ public class TopNNDCGMetric extends ListOnlyTopNMetric<MeanAccumulator> {
 
         double score = gain / idealGain;
 
-        context.add(score);
+        synchronized (context) {
+            context.add(score);
+        }
         return MetricResult.singleton(columnName, score);
     }
 
